@@ -4,29 +4,75 @@
 
 {% block content %}
 <div class="container">
-    <div class="p-5 mb-4 bg-light rounded-3 text-center">
+    <div class="p-5 mb-5 bg-light rounded-3 text-center hero-section">
         <div class="container-fluid py-5">
-            <h1 class="display-5 fw-bold">Precificação Simples e Rápida</h1>
-            <p class="fs-4">Transforme as suas notas fiscais de compra em preços de venda precisos com apenas um clique. O XMarkup automatiza o cálculo de custos e margens para si.</p>
-            <a href="{{ url_for('precificador') }}" class="btn btn-primary btn-lg mt-3">Aceder ao Precificador Gratuitamente</a>
+            <h1 class="display-5 fw-bold">Precificação Inteligente para o seu E-commerce</h1>
+            <p class="fs-4 col-md-8 mx-auto">Importe as suas NF-e de compra e transforme dados complexos em preços de venda precisos para todos os seus canais. Simples, rápido e gratuito.</p>
+            <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg mt-3">
+                <span class="mdi mdi-account-plus-outline me-1"></span> Criar Conta Gratuita
+            </a>
+            <a href="{{ url_for('login') }}" class="btn btn-outline-secondary btn-lg mt-3">
+                <span class="mdi mdi-login me-1"></span> Já tenho conta
+            </a>
+        </div>
+    </div>
+
+    <div class="container text-center py-5 intro-section">
+        <div class="row justify-content-center">
+            <div class="col-lg-9">
+                <h2 class="display-6 fw-bold">Descomplique na hora de precificar</h2>
+                <p class="lead text-muted mt-3">
+                    XMarkup foi desenvolvida para atender às necessidades de vendedores de e-commerce e marketplaces. A nossa ferramenta é a solução intuitiva que você precisa para precificar com velocidade e precisão, eliminando a complexidade das fórmulas e a chance de erros.
+                </p>
+                <p class="lead text-muted">
+                    Importe facilmente dados de notas fiscais (XMLs), configure seus custos e margens por plataforma, e exporte listas prontas para cadastro.
+                </p>
+                <p class="fw-bold fs-5 mt-4">Menos tempo a calcular, mais tempo a vender.</p>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="row text-center my-5">
+        <h2 class="mb-4">Como Funciona em 3 Passos Simples</h2>
+        <div class="col-md-4">
+            <div class="step-card">
+                <div class="step-icon"><span class="mdi mdi-upload"></span></div>
+                <h5>1. Faça o Upload do XML</h5>
+                <p>Envie um ou mais ficheiros XML da sua Nota Fiscal de compra. A nossa plataforma extrai todos os produtos e custos automaticamente.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="step-card">
+                <div class="step-icon"><span class="mdi mdi-calculator-variant"></span></div>
+                <h5>2. Defina as Suas Margens</h5>
+                <p>Informe a sua margem de lucro e os custos de cada marketplace (comissão, frete). O sistema calcula o preço de venda ideal para cada canal.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="step-card">
+                <div class="step-icon"><span class="mdi mdi-file-excel"></span></div>
+                <h5>3. Exporte e Venda</h5>
+                <p>Exporte os preços calculados em planilhas prontas para importar no Mercado Livre, Shopee e outros. Vender nunca foi tão fácil!</p>
+            </div>
         </div>
     </div>
 
     <div class="row align-items-md-stretch">
         <div class="col-md-6 mb-4">
-            <div class="h-100 p-5 text-white bg-dark rounded-3">
-                <h2>Para Quem?</h2>
-                <p>Ideal para vendedores de e-commerce (Mercado Livre, Shopee, etc.), pequenos empresários e qualquer pessoa que precise de agilidade e precisão para precificar produtos a partir de notas de compra.</p>
+            <div class="h-100 p-5 text-white bg-dark rounded-3 feature-card">
+                <h2>Para Quem é o XMarkup?</h2>
+                <p>Ideal para vendedores de e-commerce (Mercado Livre, Shopee, Amazon, etc.), pequenos e médios lojistas, e qualquer pessoa que precise de agilidade e precisão para precificar produtos a partir de notas de compra.</p>
             </div>
         </div>
         <div class="col-md-6 mb-4">
-            <div class="h-100 p-5 bg-body-secondary border rounded-3">
-                <h2>Benefícios</h2>
+            <div class="h-100 p-5 bg-body-secondary border rounded-3 feature-card">
+                <h2>Benefícios Imediatos</h2>
                 <ul class="list-unstyled">
-                    <li>✅ **Totalmente Gratuito:** Sem custos, assinaturas ou "letras pequenas".</li>
-                    <li>✅ **Agilidade:** Extraia dados de múltiplos produtos de uma só vez.</li>
-                    <li>✅ **Precisão:** Leva em conta impostos e fretes da NF-e para o custo real.</li>
-                    <li>✅ **Flexibilidade:** Calcule o preço final para diferentes plataformas.</li>
+                    <li class="mb-2"><span class="mdi mdi-check-circle-outline text-success me-2"></span><strong>Totalmente Gratuito:</strong> Sem custos, assinaturas ou "letras pequenas".</li>
+                    <li class="mb-2"><span class="mdi mdi-check-circle-outline text-success me-2"></span><strong>Agilidade Máxima:</strong> Extraia dados de centenas de produtos de uma só vez.</li>
+                    <li class="mb-2"><span class="mdi mdi-check-circle-outline text-success me-2"></span><strong>Precisão de Custo:</strong> Levamos em conta impostos e fretes da NF-e para o custo real.</li>
+                    <li><span class="mdi mdi-check-circle-outline text-success me-2"></span><strong>Flexibilidade Total:</strong> Calcule o preço final para diferentes plataformas simultaneamente.</li>
                 </ul>
             </div>
         </div>

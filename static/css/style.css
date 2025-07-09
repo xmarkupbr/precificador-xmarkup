@@ -1,30 +1,7 @@
-/* Estilos Gerais */
-body {
-  background-color: #f0f2f5;
-}
-
-.card {
-  border-radius: 0.75rem;
-  border: none;
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
-}
-
-.platform-group {
-  border: 1px solid #e0e0e0;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  margin-bottom: 1rem;
-  background-color: #fff;
-  height: 100%;
-}
-.platform-group label {
-  font-weight: 600;
-  color: #495057;
-}
-
 /* === LAYOUT DE DUAS COLUNAS PARA A PÁGINA DE RESULTADOS === */
 .precificador-layout {
   display: flex;
+  flex-direction: row-reverse; /* Coloca a sidebar na esquerda */
   flex-wrap: nowrap;
   gap: 1.5rem;
 }
@@ -54,6 +31,40 @@ body {
     max-height: none;
     overflow-y: visible;
   }
+}
+/* Força a barra de rolagem a estar sempre presente, evitando o "salto" do layout */
+html {
+    scrollbar-gutter: stable;
+}
+
+/* Estilos Gerais */
+body {
+  background-color: #f0f2f5;
+}
+
+/* ... resto do seu ficheiro css ... */
+/* Estilos Gerais */
+body {
+  background-color: #f0f2f5;
+}
+
+.card {
+  border-radius: 0.75rem;
+  border: none;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+}
+
+.platform-group {
+  border: 1px solid #e0e0e0;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background-color: #fff;
+  height: 100%;
+}
+.platform-group label {
+  font-weight: 600;
+  color: #495057;
 }
 
 @media (max-width: 767px) {
@@ -105,18 +116,252 @@ body {
 .info-item { display: flex; align-items: center; margin-bottom: 0.5rem; }
 .mdi { margin-right: 0.5rem; }
 
-/* Adicionado para os botões de exportação */
 .sidebar-content .card-title {
     font-size: 1.1rem;
     font-weight: 600;
 }
 
-/* === CORREÇÃO PARA O TAMANHO DOS LOGOS === */
 .marketplace-logo {
-    max-width: 40px; /* Define uma largura máxima */
-    max-height: 40px; /* Define uma altura máxima */
-    width: auto; /* Mantém a proporção */
-    height: auto; /* Mantém a proporção */
-    object-fit: contain; /* Garante que a imagem caiba no espaço sem distorcer */
-    margin-right: 0.75rem; /* Adiciona um espaço à direita */
+    max-width: 40px;
+    max-height: 40px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    margin-right: 0.75rem;
+}
+
+/* Melhoras para a Página Inicial (Home) */
+.hero-section {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border: 1px solid #dee2e6;
+}
+
+.step-card {
+  padding: 2rem 1.5rem;
+  border-radius: 0.75rem;
+  background-color: #fff;
+  border: 1px solid #e9ecef;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  height: 100%;
+}
+
+.step-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 0.8rem 1.5rem rgba(0, 0, 0, 0.08);
+}
+
+.step-icon {
+  font-size: 2.5rem;
+  color: #0d6efd;
+  margin-bottom: 1rem;
+  display: inline-block;
+  background-color: rgba(13, 110, 253, 0.1);
+  width: 70px;
+  height: 70px;
+  line-height: 70px;
+  border-radius: 50%;
+}
+
+.feature-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Melhoras para as Páginas de Autenticação */
+.auth-card {
+  border: 1px solid #dee2e6;
+  border-top: 4px solid #0d6efd;
+}
+
+.form-section-title {
+    font-size: 1.1rem;
+    color: #495057;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 0.5rem;
+}
+/* ================================================= */
+/* AJUSTES PARA O LAYOUT DO RESUMO DA OPERAÇÃO       */
+/* ================================================= */
+
+/* Transforma o container dos cards de marketplace numa grelha flexível */
+.resumo-marketplaces {
+    display: grid;
+    /* Cria colunas automáticas: cada uma com no mínimo 200px
+       e no máximo ocupando o espaço disponível (1fr) */
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem; /* Espaço entre os cards */
+    margin-top: 1rem;
+}
+
+/* Deixa o card de Resumo Geral mais compacto e horizontal */
+.resumo-geral {
+    display: flex;
+    justify-content: space-around; /* Distribui o espaço */
+    align-items: center;
+    padding: 0.75rem 1.5rem; /* Padding vertical menor */
+    margin-bottom: 0; /* Remove a margem inferior */
+}
+
+/* Deixa cada card de marketplace mais compacto */
+.marketplace-card {
+    padding: 0.75rem 1rem; /* Padding interno menor */
+    margin-bottom: 0; /* Remove a margem, pois o 'gap' da grelha já controla o espaço */
+    border-top: 3px solid var(--marketplace-color);
+}
+
+.marketplace-header h6 {
+    font-size: 0.9rem; /* Fonte do título menor */
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.marketplace-stats {
+    gap: 0.25rem; /* Espaço menor entre as linhas de stats */
+}
+
+.stat-item {
+    font-size: 0.85rem; /* Fonte dos stats menor */
+}
+
+.stat-value.total {
+    font-size: 0.9rem; /* Fonte do total um pouco menor */
+}
+/* ================================================= */
+/* AJUSTES PARA TABELA ROLÁVEL E CABEÇALHO FIXO      */
+/* ================================================= */
+
+/* Define uma altura máxima para o container da tabela.
+   Se o conteúdo for maior, cria uma barra de rolagem vertical. */
+.table-responsive {
+    max-height: 60vh; /* Usa 60% da altura da janela de visualização */
+    overflow-y: auto;
+}
+
+/* Faz com que o cabeçalho da tabela (th) permaneça fixo no topo
+   do container rolavel. */
+.table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2; /* Garante que o cabeçalho fique por cima do conteúdo da tabela */
+    background-color: #f8f9fa; /* Um fundo para não ficar transparente */
+}
+/* ================================================= */
+/* MELHORIAS VISUAIS PARA A DASHBOARD                */
+/* ================================================= */
+
+.kpi-card {
+    border: none;
+    border-left: 4px solid var(--kpi-color);
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.06);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kpi-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.1);
+}
+
+.kpi-card .card-body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.kpi-card .kpi-icon {
+    font-size: 2.5rem;
+    color: var(--kpi-color);
+    opacity: 0.7;
+}
+
+.kpi-card .kpi-text {
+    text-align: right;
+}
+
+.kpi-card .kpi-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #6c757d;
+}
+
+.kpi-card .kpi-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #343a40;
+}
+
+/* Cores para cada card */
+.kpi-card.cost { --kpi-color: #dc3545; } /* Vermelho */
+.kpi-card.revenue { --kpi-color: #198754; } /* Verde */
+.kpi-card.profit { --kpi-color: #0d6efd; } /* Azul */
+.kpi-card.items { --kpi-color: #ffc107; } /* Amarelo */
+
+/* Ajustes na tabela de histórico */
+.history-table th {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.history-table .btn-sm {
+    font-size: 0.8rem;
+    padding: 0.2rem 0.5rem;
+}
+/* ================================================= */
+/* MELHORIAS VISUAIS PARA O MENU DE NAVEGAÇÃO        */
+/* ================================================= */
+
+/* Adiciona espaçamento entre os itens do menu */
+.navbar-nav .nav-item {
+    margin-left: 0.8rem; /* Aumentado para mais espaço */
+}
+
+/* Transforma os links em botões com cantos arredondados (pílulas) */
+.navbar-nav .nav-link {
+    padding: 0.5rem 1rem;
+    border-radius: 50rem; /* Cria o efeito de pílula */
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+/* Melhora o estilo do link ativo e do hover */
+.navbar-nav .nav-link.active,
+.navbar-nav .nav-link:hover {
+    background-color: #e9ecef;
+    color: #0d6efd;
+}
+
+/* Estilo para o dropdown */
+.navbar-nav .dropdown-menu {
+    border-radius: 0.75rem; /* Cantos mais arredondados */
+    border: 1px solid #dee2e6;
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.1);
+    animation: fadeInDropdown 0.2s ease-out; /* Animação de entrada */
+}
+
+/* Animação para o dropdown aparecer suavemente */
+@keyframes fadeInDropdown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Ajusta o estilo do item ativo dentro do dropdown */
+.dropdown-item:active {
+    background-color: #0d6efd;
+    color: #fff;
+}
+.intro-section {
+    background-color: #ffffff;
+    border-top: 1px solid #e9ecef;
+    border-bottom: 1px solid #e9ecef;
+    margin-bottom: 3rem;
 }

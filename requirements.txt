@@ -4,3 +4,5 @@ openpyxl
 gunicorn
 Flask-Login
 Werkzeug
+Flask-Mail
+python-dotenv

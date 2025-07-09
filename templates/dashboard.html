@@ -4,102 +4,144 @@
 
 {% block content %}
 <div class="container">
-    <h2 class="mb-4">Dashboard de Análise</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Dashboard de Análise</h2>
+        <a href="{{ url_for('precificador') }}" class="btn btn-primary">
+            <span class="mdi mdi-plus-circle-outline me-1"></span>Nova Precificação
+        </a>
+    </div>
 
-    <!-- Seção de Cards (KPIs) -->
     <div class="row mb-4">
-        <div class="col-md-3 mb-3">
-            <div class="card text-center h-100">
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card kpi-card cost h-100">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">Custo Total</h6>
-                    <h4 class="card-title">{{ kpis.custo_total|brl }}</h4>
+                    <div class="kpi-text">
+                        <h6 class="kpi-title">Custo Total</h6>
+                        <h4 class="kpi-value">{{ kpis.custo_total|brl }}</h4>
+                    </div>
+                    <div class="kpi-icon">
+                        <span class="mdi mdi-arrow-down-bold-circle-outline"></span>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-center h-100">
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card kpi-card revenue h-100">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">Receita Estimada</h6>
-                    <h4 class="card-title">{{ kpis.receita_total|brl }}</h4>
+                    <div class="kpi-text">
+                        <h6 class="kpi-title">Receita Estimada</h6>
+                        <h4 class="kpi-value">{{ kpis.receita_total|brl }}</h4>
+                    </div>
+                    <div class="kpi-icon">
+                        <span class="mdi mdi-arrow-up-bold-circle-outline"></span>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-center h-100">
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card kpi-card profit h-100">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">Lucro Bruto Estimado</h6>
-                    <h4 class="card-title text-success">{{ kpis.lucro_total|brl }}</h4>
+                    <div class="kpi-text">
+                        <h6 class="kpi-title">Lucro Bruto Estimado</h6>
+                        <h4 class="kpi-value">{{ kpis.lucro_total|brl }}</h4>
+                    </div>
+                    <div class="kpi-icon">
+                        <span class="mdi mdi-currency-usd"></span>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-center h-100">
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card kpi-card items h-100">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">Itens Processados</h6>
-                    <h4 class="card-title">{{ kpis.total_itens }}</h4>
+                    <div class="kpi-text">
+                        <h6 class="kpi-title">Itens Processados</h6>
+                        <h4 class="kpi-value">{{ kpis.total_itens|int }}</h4>
+                    </div>
+                    <div class="kpi-icon">
+                        <span class="mdi mdi-package-variant-closed"></span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Seção de Gráficos -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="card">
+    <div class="row">
+        <div class="col-lg-7 mb-4">
+            <div class="card h-100">
+                <div class="card-header fw-bold">
+                    Receita Estimada por Canal de Venda
+                </div>
                 <div class="card-body">
-                    <h5 class="card-title">Receita Estimada por Canal de Venda</h5>
-                    <!-- O gráfico será renderizado aqui -->
-                    <canvas id="receitaPorCanalChart"></canvas>
+                    {% if chart_data and chart_data.data|sum > 0 %}
+                        <canvas id="receitaPorCanalChart"></canvas>
+                    {% else %}
+                        <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+                            <p>Não há dados suficientes para exibir o gráfico.</p>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Seção de Histórico Recente -->
-    <h3 class="mb-3">Histórico Recente</h3>
-    {% if precificacoes %}
-        <div class="card">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead>
-                        <tr>
-                            <th>Data de Criação</th>
-                            <th>Nº de Produtos</th>
-                            <th>Custo Total</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for prec in precificacoes %}
-                        <tr>
-                            <td>{{ prec.criado_em.strftime('%d/%m/%Y %H:%M') }}</td>
-                            <td>{{ prec.num_produtos }}</td>
-                            <td>{{ prec.custo_total|brl }}</td>
-                            <td>
-                                <a href="{{ url_for('ver_precificacao', prec_id=prec.id) }}" class="btn btn-sm btn-primary">Ver Detalhes</a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+        <div class="col-lg-5 mb-4">
+             <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">Histórico Recente</span>
+                    <a href="{{ url_for('baixar_historico_completo') }}" class="btn btn-sm btn-outline-success">
+                        <span class="mdi mdi-content-save-all-outline me-1"></span>Salvar Histórico Completo
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                     {% if precificacoes %}
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0 history-table">
+                                <thead>
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Nº de Itens</th>
+                                        <th>Custo Total</th>
+                                        <th>Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for prec in precificacoes %}
+                                    <tr>
+                                        <td>{{ prec.criado_em.strftime('%d/%m/%y %H:%M') }}</td>
+                                        <td>{{ prec.num_produtos }}</td>
+                                        <td>{{ prec.custo_total|brl }}</td>
+                                        <td>
+                                            <a href="{{ url_for('ver_precificacao', prec_id=prec.id) }}" class="btn btn-sm btn-outline-primary">Ver</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="d-flex align-items-center justify-content-center h-100">
+                             <div class="text-center text-muted p-4">
+                                <span class="mdi mdi-information-outline fs-3"></span>
+                                <p class="mt-2 mb-0">Você ainda não fez nenhuma precificação.</p>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer text-center text-muted small">
+                    <span class="mdi mdi-alert-outline"></span>
+                    O histórico de precificações é mantido por 30 dias. Salve o seu histórico completo regularmente.
+                </div>
+             </div>
         </div>
-    {% else %}
-        <div class="alert alert-info">
-            Você ainda não fez nenhuma precificação. <a href="{{ url_for('precificador') }}" class="alert-link">Clique aqui</a> para começar!
-        </div>
-    {% endif %}
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    // Este script só será executado se houver dados para o gráfico
-    {% if chart_data %}
+    {% if chart_data and chart_data.data|sum > 0 %}
     document.addEventListener('DOMContentLoaded', function () {
         const ctx = document.getElementById('receitaPorCanalChart').getContext('2d');
-        
-        // Converte os dados enviados pelo Flask para o formato do Chart.js
         const chartData = {{ chart_data|tojson }};
 
         new Chart(ctx, {
@@ -110,21 +152,23 @@
                     label: 'Receita Estimada (R$)',
                     data: chartData.data,
                     backgroundColor: [
+                        'rgba(255, 99, 132, 0.6)',
                         'rgba(54, 162, 235, 0.6)',
                         'rgba(255, 206, 86, 0.6)',
-                        'rgba(255, 99, 132, 0.6)',
                         'rgba(75, 192, 192, 0.6)'
                     ],
                     borderColor: [
+                        'rgba(255, 99, 132, 1)',
                         'rgba(54, 162, 235, 1)',
                         'rgba(255, 206, 86, 1)',
-                        'rgba(255, 99, 132, 1)',
                         'rgba(75, 192, 192, 1)'
                     ],
                     borderWidth: 1
                 }]
             },
             options: {
+                responsive: true,
+                maintainAspectRatio: false,
                 scales: {
                     y: {
                         beginAtZero: true,
@@ -136,6 +180,9 @@
                     }
                 },
                 plugins: {
+                    legend: {
+                        display: false
+                    },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
