@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard de Análise{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Dashboard de Análise</h2>
+
+    <!-- Seção de Cards (KPIs) -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 text-muted">Custo Total</h6>
+                    <h4 class="card-title">{{ kpis.custo_total|brl }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 text-muted">Receita Estimada</h6>
+                    <h4 class="card-title">{{ kpis.receita_total|brl }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 text-muted">Lucro Bruto Estimado</h6>
+                    <h4 class="card-title text-success">{{ kpis.lucro_total|brl }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 text-muted">Itens Processados</h6>
+                    <h4 class="card-title">{{ kpis.total_itens }}</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Seção de Gráficos -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Receita Estimada por Canal de Venda</h5>
+                    <!-- O gráfico será renderizado aqui -->
+                    <canvas id="receitaPorCanalChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Seção de Histórico Recente -->
+    <h3 class="mb-3">Histórico Recente</h3>
+    {% if precificacoes %}
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Data de Criação</th>
+                            <th>Nº de Produtos</th>
+                            <th>Custo Total</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for prec in precificacoes %}
+                        <tr>
+                            <td>{{ prec.criado_em.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td>{{ prec.num_produtos }}</td>
+                            <td>{{ prec.custo_total|brl }}</td>
+                            <td>
+                                <a href="{{ url_for('ver_precificacao', prec_id=prec.id) }}" class="btn btn-sm btn-primary">Ver Detalhes</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            Você ainda não fez nenhuma precificação. <a href="{{ url_for('precificador') }}" class="alert-link">Clique aqui</a> para começar!
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Este script só será executado se houver dados para o gráfico
+    {% if chart_data %}
+    document.addEventListener('DOMContentLoaded', function () {
+        const ctx = document.getElementById('receitaPorCanalChart').getContext('2d');
+        
+        // Converte os dados enviados pelo Flask para o formato do Chart.js
+        const chartData = {{ chart_data|tojson }};
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartData.labels,
+                datasets: [{
+                    label: 'Receita Estimada (R$)',
+                    data: chartData.data,
+                    backgroundColor: [
+                        'rgba(54, 162, 235, 0.6)',
+                        'rgba(255, 206, 86, 0.6)',
+                        'rgba(255, 99, 132, 0.6)',
+                        'rgba(75, 192, 192, 0.6)'
+                    ],
+                    borderColor: [
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(75, 192, 192, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value, index, values) {
+                                return 'R$ ' + value.toLocaleString('pt-BR');
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(context.parsed.y);
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+    {% endif %}
+</script>
+{% endblock %}

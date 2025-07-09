@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Página Inicial{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="p-5 mb-4 bg-light rounded-3 text-center">
+        <div class="container-fluid py-5">
+            <h1 class="display-5 fw-bold">Precificação Simples e Rápida</h1>
+            <p class="fs-4">Transforme as suas notas fiscais de compra em preços de venda precisos com apenas um clique. O XMarkup automatiza o cálculo de custos e margens para si.</p>
+            <a href="{{ url_for('precificador') }}" class="btn btn-primary btn-lg mt-3">Aceder ao Precificador Gratuitamente</a>
+        </div>
+    </div>
+
+    <div class="row align-items-md-stretch">
+        <div class="col-md-6 mb-4">
+            <div class="h-100 p-5 text-white bg-dark rounded-3">
+                <h2>Para Quem?</h2>
+                <p>Ideal para vendedores de e-commerce (Mercado Livre, Shopee, etc.), pequenos empresários e qualquer pessoa que precise de agilidade e precisão para precificar produtos a partir de notas de compra.</p>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="h-100 p-5 bg-body-secondary border rounded-3">
+                <h2>Benefícios</h2>
+                <ul class="list-unstyled">
+                    <li>✅ **Totalmente Gratuito:** Sem custos, assinaturas ou "letras pequenas".</li>
+                    <li>✅ **Agilidade:** Extraia dados de múltiplos produtos de uma só vez.</li>
+                    <li>✅ **Precisão:** Leva em conta impostos e fretes da NF-e para o custo real.</li>
+                    <li>✅ **Flexibilidade:** Calcule o preço final para diferentes plataformas.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

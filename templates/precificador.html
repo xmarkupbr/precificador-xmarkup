@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Precificador de Produtos{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% include 'partials/_flash_messages.html' %}
+
+    {% if not produtos %}
+    <div class="card p-4 shadow-sm">
+        <form method="post" action="{{ url_for('precificador') }}" enctype="multipart/form-data" id="form-param">
+            <h4 class="mb-4 text-primary">Configurações de Precificação</h4>
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Margem de Lucro (%)</label>
+                <input type="number" step="any" min="0" name="margem" class="form-control" required style="max-width:180px;" value="{{ parametros.get('margem', '') }}">
+            </div>
+            <h5 class="mb-3 text-secondary">Comissões e Fretes por Plataforma</h5>
+            <div class="row mb-4">
+                <div class="col-lg-3 col-md-6 mb-3"><label class="form-label">Meu Site</label><input type="number" step="any" min="0" name="comissao_site" class="form-control mb-2" placeholder="Comissão (%)" required value="{{ parametros.get('comissao_site', '') }}"><input type="number" step="any" min="0" name="frete_site" class="form-control" placeholder="Frete (R$)" required value="{{ parametros.get('frete_site', '') }}"></div>
+                <div class="col-lg-3 col-md-6 mb-3"><label class="form-label">Mercado Livre</label><input type="number" step="any" min="0" name="comissao_ml" class="form-control mb-2" placeholder="Comissão (%)" required value="{{ parametros.get('comissao_ml', '') }}"><input type="number" step="any" min="0" name="frete_ml" class="form-control" placeholder="Frete (R$)" required value="{{ parametros.get('frete_ml', '') }}"></div>
+                <div class="col-lg-3 col-md-6 mb-3"><label class="form-label">Shopee</label><input type="number" step="any" min="0" name="comissao_shopee" class="form-control mb-2" placeholder="Comissão (%)" required value="{{ parametros.get('comissao_shopee', '') }}"><input type="number" step="any" min="0" name="frete_shopee" class="form-control" placeholder="Frete (R$)" required value="{{ parametros.get('frete_shopee', '') }}"></div>
+                <div class="col-lg-3 col-md-6 mb-3"><label class="form-label">Magalu</label><input type="number" step="any" min="0" name="comissao_magalu" class="form-control mb-2" placeholder="Comissão (%)" required value="{{ parametros.get('comissao_magalu', '') }}"><input type="number" step="any" min="0" name="frete_magalu" class="form-control" placeholder="Frete (R$)" required value="{{ parametros.get('frete_magalu', '') }}"></div>
+            </div>
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Upload de XML(s)</label>
+                <input type="file" class="form-control" name="xmlfiles" multiple required accept=".xml">
+                <div class="form-text">Selecione um ou mais ficheiros XML de Nota Fiscal Eletrónica (NFe)</div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg w-100"><span class="mdi mdi-cogs me-1"></span> Processar XML(s)</button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if produtos %}
+    <div class="card p-4 shadow-sm">
+        <form method="post" action="{{ url_for('editar') }}">
+            <h4 class="mb-4 text-primary">Resultados da Precificação</h4>
+
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Margem de Lucro (%)</label>
+                <input type="number" step="any" min="0" name="margem" class="form-control" required style="max-width:180px;" value="{{ parametros.get('margem', '') }}">
+            </div>
+            <h5 class="mb-3 text-secondary">Comissões e Fretes por Plataforma</h5>
+            <div class="row mb-4">
+                <div class="col-lg-3 col-md-6 mb-3"><label class="form-label">Meu Site</label><input type="number" step="any" min="0" name="comissao_site" class="form-control mb-2" placeholder="Comissão (%)" required value="{{ parametros.get('comissao_site', '') }}"><input type="number" step="any" min="0" name="frete_site" class="form-control" placeholder="Frete (R$)" required value="{{ parametros.get('frete_site', '') }}"></div>
+                <div class="col-lg-3 col-md-6 mb-3"><label class="form-label">Mercado Livre</label><input type="number" step="any" min="0" name="comissao_ml" class="form-control mb-2" placeholder="Comissão (%)" required value="{{ parametros.get('comissao_ml', '') }}"><input type="number" step="any" min="0" name="frete_ml" class="form-control" placeholder="Frete (R$)" required value="{{ parametros.get('frete_ml', '') }}"></div>
+                <div class="col-lg-3 col-md-6 mb-3"><label class="form-label">Shopee</label><input type="number" step="any" min="0" name="comissao_shopee" class="form-control mb-2" placeholder="Comissão (%)" required value="{{ parametros.get('comissao_shopee', '') }}"><input type="number" step="any" min="0" name="frete_shopee" class="form-control" placeholder="Frete (R$)" required value="{{ parametros.get('frete_shopee', '') }}"></div>
+                <div class="col-lg-3 col-md-6 mb-3"><label class="form-label">Magalu</label><input type="number" step="any" min="0" name="comissao_magalu" class="form-control mb-2" placeholder="Comissão (%)" required value="{{ parametros.get('comissao_magalu', '') }}"><input type="number" step="any" min="0" name="frete_magalu" class="form-control" placeholder="Frete (R$)" required value="{{ parametros.get('frete_magalu', '') }}"></div>
+            </div>
+            
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                <a href="{{ url_for('precificador') }}" class="btn btn-outline-secondary"><span class="mdi mdi-file-document-plus me-1"></span>Novo Processamento</a>
+                <button name="acao" value="atualizar" type="submit" class="btn btn-primary"><span class="mdi mdi-refresh me-1"></span>Atualizar Preços</button>
+                
+            <div class="dropdown">
+                <button class="btn btn-success dropdown-toggle" type="button" id="dropdownExportar" data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="mdi mdi-microsoft-excel me-1"></span>Exportar Para...
+                </button>
+                    <ul class="dropdown-menu" aria-labelledby="dropdownExportar">
+                        <li><a class="dropdown-item" href="{{ url_for('baixar_planilha_completa', prec_id=session.get('precificacao_id')) }}">Planilha Completa (Padrão)</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('baixar_planilha_shopee', prec_id=session.get('precificacao_id')) }}">Shopee</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('baixar_planilha_ml', prec_id=session.get('precificacao_id')) }}">Mercado Livre</a></li>
+                        <li><a class="dropdown-item disabled" href="#">Magalu (em breve)</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>NF-e</th><th>Código</th><th>Nome do produto</th><th>Quant.</th><th>Custo Unitário</th><th>Meu Site</th><th>Mercado Livre</th><th>Shopee</th><th>Magalu</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in produtos %}
+                        <tr>
+                            <td>{{ row["Série NF-e"] }}</td>
+                            <td><input name="codigo[]" value="{{ row['Código'] }}" class="form-control form-control-sm" style="min-width:110px;"></td>
+                            <td><input name="nome[]" value="{{ row['Nome'] }}" class="form-control form-control-sm" style="min-width:240px;"></td>
+                            <td><input name="qtd[]" value="{{ row['Qtd']|int }}" type="number" min="1" class="form-control form-control-sm" style="width:80px;"></td>
+                            <td>{{ row["Custo Unitário (R$)"]|brl }}</td>
+                            <td>{{ row["Preço Venda Site (R$)"]|brl }}</td>
+                            <td>{{ row["Mercado Livre (R$)"]|brl }}</td>
+                            <td>{{ row["Shopee (R$)"]|brl }}</td>
+                            <td>{{ row["Magalu (R$)"]|brl }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if resumo %}
+            <div class="mt-4 p-3 bg-light rounded">
+                <h5 class="mb-3">Resumo dos Totais</h5>
+                <div class="row">
+                    <div class="col-md-6 col-lg-3 mb-2"><strong>Qtd. Total de Itens:</strong><br>{{ resumo.total_qtd|int }}</div>
+                    <div class="col-md-6 col-lg-3 mb-2"><strong>Custo Total:</strong><br>{{ resumo.custo_total|brl }}</div>
+                </div>
+                <hr>
+                <div class="row mt-3">
+                     <div class="col-lg-3 col-md-6 mb-3"><strong>Total Site:</strong><br>{{ resumo["Preço Venda Site (R$)_total"]|brl }}</div>
+                     <div class="col-lg-3 col-md-6 mb-3"><strong>Total Mercado Livre:</strong><br>{{ resumo["Mercado Livre (R$)_total"]|brl }}</div>
+                     <div class="col-lg-3 col-md-6 mb-3"><strong>Total Shopee:</strong><br>{{ resumo["Shopee (R$)_total"]|brl }}</div>
+                     <div class="col-lg-3 col-md-6 mb-3"><strong>Total Magalu:</strong><br>{{ resumo["Magalu (R$)_total"]|brl }}</div>
+                </div>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

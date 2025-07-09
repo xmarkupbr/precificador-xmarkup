@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Status e Feedback{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <!-- Coluna do Roadmap -->
+        <div class="col-md-7 mb-4">
+            <div class="card h-100">
+                <div class="card-header fw-bold">Status e Roadmap do Projeto</div>
+                <div class="card-body">
+                    <h5 class="text-success">✅ Funcionalidades Atuais</h5>
+                    <ul>
+                        <li>Leitura de XML de NF-e</li>
+                        <li>Cálculo de Custo e Preço de Venda</li>
+                        <li>Suporte a Múltiplas Plataformas</li>
+                        <li>Exportação para Excel</li>
+                        <li>Edição de dados na tabela</li>
+                    </ul>
+
+                    <h5 class="mt-4 text-primary">🚀 Próximos Passos</h5>
+                    <ul>
+                        <li>Criação de contas de usuário para salvar histórico</li>
+                        <li>Dashboard com análise de lucratividade</li>
+                        <li>Modo escuro (Dark Mode)</li>
+                        <li>Integração com Marketplaces (experimental)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coluna do Formulário de Feedback -->
+        <div class="col-md-5 mb-4">
+            <div class="card h-100">
+                <div class="card-header fw-bold">Deixe seu Feedback</div>
+                <div class="card-body">
+                    <p>Sua opinião é muito importante para o futuro do XMarkup. O que você gostaria de ver na ferramenta?</p>
+                    <form action="{{ url_for('feedback') }}" method="post">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Seu Email (Opcional)</label>
+                            <input type="email" class="form-control" id="email" name="email" placeholder="nome@exemplo.com">
+                        </div>
+                        <div class="mb-3">
+                            <label for="feedback_message" class="form-label">Sua Mensagem</label>
+                            <textarea class="form-control" id="feedback_message" name="feedback_message" rows="4" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Enviar Feedback</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Seção para mostrar mensagens de flash (toast) -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+            {% for category, message in messages %}
+                <div class="toast show align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            {{ message }}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+</div>
+{% endblock %}<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Documento sem título</title>
+</head>
+
+<body>
+</body>
+</html>

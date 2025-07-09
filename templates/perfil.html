@@ -1,0 +1,34 @@
+{% extends 'base.html' %} 
+{% block title %}Meu Perfil{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h2>Meu Perfil</h2>
+        </div>
+        <div class="card-body">
+            <h5 class="card-title">{{ user.nome_completo }}</h5>
+            <p class="card-text text-muted">{{ user.empresa }}</p>
+            <hr>
+            
+            <dl class="row">
+                <dt class="col-sm-3">E-mail</dt>
+                <dd class="col-sm-9">{{ user.email }}</dd>
+
+                <dt class="col-sm-3">Telefone</dt>
+                <dd class="col-sm-9">{{ user.telefone if user.telefone else 'Não informado' }}</dd>
+
+                <dt class="col-sm-3">Ramo de Atividade</dt>
+                <dd class="col-sm-9">{{ user.ramo_atividade if user.ramo_atividade else 'Não informado' }}</dd>
+
+                <dt class="col-sm-3">Marketplaces</dt>
+                <dd class="col-sm-9">{{ user.marketplaces if user.marketplaces else 'Não informado' }}</dd>
+            </dl>
+
+            <hr>
+           <a href="{{ url_for('editar_perfil') }}" class="btn btn-primary">Editar Perfil</a>
+            </div>
+    </div>
+</div>
+{% endblock %}

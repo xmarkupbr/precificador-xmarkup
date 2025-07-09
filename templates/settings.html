@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Minhas Configurações{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h2 class="mb-0">Minhas Configurações Padrão</h2>
+                </div>
+                <div class="card-body p-4">
+                    <p class="card-text mb-4">Os valores guardados aqui serão preenchidos automaticamente sempre que aceder à página do Precificador.</p>
+                    
+                    <!-- Área para mostrar mensagens de sucesso -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'success' if category == 'success' else 'info' }}">{{ message }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <form method="POST" action="{{ url_for('settings') }}">
+                        <div class="mb-4">
+                            <label for="default_margem" class="form-label fw-semibold">Margem de Lucro Padrão (%)</label>
+                            <input type="number" step="any" min="0" max="99" id="default_margem" name="default_margem" class="form-control" value="{{ user_settings.default_margem }}" style="max-width: 200px;">
+                        </div>
+
+                        <hr>
+
+                        <h5 class="mb-3">Comissões e Fretes Padrão</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Meu Site</label>
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text">Comissão %</span>
+                                    <input type="number" step="any" min="0" max="50" name="default_comissao_site" class="form-control" value="{{ user_settings.default_comissao_site }}">
+                                </div>
+                                <div class="input-group">
+                                    <span class="input-group-text">Frete R$</span>
+                                    <input type="number" step="any" min="0" max="500" name="default_frete_site" class="form-control" value="{{ user_settings.default_frete_site }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Mercado Livre</label>
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text">Comissão %</span>
+                                    <input type="number" step="any" min="0" max="50" name="default_comissao_ml" class="form-control" value="{{ user_settings.default_comissao_ml }}">
+                                </div>
+                                <div class="input-group">
+                                    <span class="input-group-text">Frete R$</span>
+                                    <input type="number" step="any" min="0" max="500" name="default_frete_ml" class="form-control" value="{{ user_settings.default_frete_ml }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Shopee</label>
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text">Comissão %</span>
+                                    <input type="number" step="any" min="0" max="50" name="default_comissao_shopee" class="form-control" value="{{ user_settings.default_comissao_shopee }}">
+                                </div>
+                                <div class="input-group">
+                                    <span class="input-group-text">Frete R$</span>
+                                    <input type="number" step="any" min="0" max="500" name="default_frete_shopee" class="form-control" value="{{ user_settings.default_frete_shopee }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Magalu</label>
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text">Comissão %</span>
+                                    <input type="number" step="any" min="0" max="50" name="default_comissao_magalu" class="form-control" value="{{ user_settings.default_comissao_magalu }}">
+                                </div>
+                                <div class="input-group">
+                                    <span class="input-group-text">Frete R$</span>
+                                    <input type="number" step="any" min="0" max="500" name="default_frete_magalu" class="form-control" value="{{ user_settings.default_frete_magalu }}">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-grid mt-4">
+                            <button type="submit" class="btn btn-primary">Salvar Configurações</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

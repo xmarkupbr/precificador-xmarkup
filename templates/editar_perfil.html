@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block title %}Editar Perfil{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h2>Editar Perfil</h2>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('editar_perfil') }}">
+                
+                <div class="form-group mb-3">
+                    <label for="nome_completo">Nome Completo</label>
+                    <input type="text" class="form-control" id="nome_completo" name="nome_completo" value="{{ user.nome_completo }}" required>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label for="empresa">Empresa</label>
+                    <input type="text" class="form-control" id="empresa" name="empresa" value="{{ user.empresa or '' }}">
+                </div>
+
+                <div class="form-group mb-3">
+                    <label for="telefone">Telefone (com DDD)</label>
+                    <input type="tel" class="form-control" id="telefone" name="telefone" value="{{ user.telefone or '' }}">
+                </div>
+
+                <div class="form-group mb-3">
+                    <label for="ramo_atividade">Ramo de Atividade</label>
+                    <input type="text" class="form-control" id="ramo_atividade" name="ramo_atividade" value="{{ user.ramo_atividade or '' }}">
+                </div>
+
+                <div class="form-group mb-3">
+                    <label>Quais Marketplaces você utiliza?</label>
+                    {% set marketplaces = user.marketplaces.split(',') %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="marketplaces" value="Mercado Livre" id="checkML" {% if 'Mercado Livre' in marketplaces %}checked{% endif %}>
+                        <label class="form-check-label" for="checkML">Mercado Livre</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="marketplaces" value="Shopee" id="checkShopee" {% if 'Shopee' in marketplaces %}checked{% endif %}>
+                        <label class="form-check-label" for="checkShopee">Shopee</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="marketplaces" value="Magalu" id="checkMagalu" {% if 'Magalu' in marketplaces %}checked{% endif %}>
+                        <label class="form-check-label" for="checkMagalu">Magazine Luiza</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="marketplaces" value="Amazon" id="checkAmazon" {% if 'Amazon' in marketplaces %}checked{% endif %}>
+                        <label class="form-check-label" for="checkAmazon">Amazon</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="marketplaces" value="Outro" id="checkOutro" {% if 'Outro' in marketplaces %}checked{% endif %}>
+                        <label class="form-check-label" for="checkOutro">Outro</label>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="d-flex justify-content-end">
+                    <a href="{{ url_for('perfil') }}" class="btn btn-secondary me-2">Cancelar</a>
+                    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
