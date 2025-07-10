@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Resumo da Precificação{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">Resumo da Precificação</h2>
+            <p class="lead text-muted">Cliente: {{ prec.user_nome }} | Data: {{ prec.criado_em.strftime('%d/%m/%Y %H:%M') }}</p>
+        </div>
+        <a href="{{ request.referrer or url_for('admin_dashboard') }}" class="btn btn-outline-secondary">
+            <span class="mdi mdi-arrow-left me-1"></span>Voltar
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card h-100">
+                <div class="card-header fw-bold">Resultados da Operação</div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <div class="card kpi-card cost">
+                                <div class="card-body">
+                                    <div class="kpi-text">
+                                        <h6 class="kpi-title">Custo Total da Operação</h6>
+                                        <h4 class="kpi-value">{{ resumo.custo_total|brl }}</h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <div class="card kpi-card items">
+                                <div class="card-body">
+                                    <div class="kpi-text">
+                                        <h6 class="kpi-title">Nº Total de Itens</h6>
+                                        <h4 class="kpi-value">{{ resumo.total_qtd|int }}</h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h5 class="mt-2">Receita Total Estimada por Canal</h5>
+                    <div class="row mt-3">
+                        <div class="col-md-4 mb-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h6 class="card-title text-muted">Meu Site</h6>
+                                    <p class="card-text fs-5 fw-bold">{{ resumo['Preço Venda Site (R$)_total']|brl }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h6 class="card-title text-muted">Mercado Livre</h6>
+                                    <p class="card-text fs-5 fw-bold">{{ resumo['Mercado Livre (R$)_total']|brl }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h6 class="card-title text-muted">Shopee</h6>
+                                    <p class="card-text fs-5 fw-bold">{{ resumo['Shopee (R$)_total']|brl }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header fw-bold">
+                    <span class="mdi mdi-receipt-text-outline"></span>Notas Fiscais Utilizadas
+                </div>
+                <div class="card-body">
+                    {% if nfe_info %}
+                        <ul class="list-group list-group-flush">
+                        {# Loop sobre a nova variável nfe_info, que contém (nfe, contagem) #}
+                        {% for nfe, count in nfe_info %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {{ nfe }}
+                                <span class="badge bg-primary rounded-pill">{{ count }} {% if count > 1 %}produtos{% else %}produto{% endif %}</span>
+                            </li>
+                        {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted">Nenhuma NF-e encontrada.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+{% endblock %}

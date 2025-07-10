@@ -2,6 +2,8 @@ import os
 import xml.etree.ElementTree as ET
 import io
 import json
+from functools import wraps
+from flask.cli import with_appcontext
 from flask import jsonify
 from io import BytesIO
 from flask import Flask, render_template, request, flash, send_file, redirect, url_for, session
@@ -11,16 +13,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from datetime import datetime, timedelta
 from flask_mail import Mail, Message
-# =======================================================
-# CORREÇÃO: IMPORTAR E CARREGAR O .ENV PRIMEIRO DE TUDO
-# =======================================================
 from dotenv import load_dotenv
-load_dotenv() 
-# =======================================================
+from itsdangerous import URLSafeTimedSerializer
+from collections import Counter
 
-# --- CONFIGURAÇÃO DA APLICAÇÃO ---
+load_dotenv()
+
 app = Flask(__name__)
-# Agora, ao criar o app, as variáveis do .env já estão disponíveis
 app.secret_key = os.environ.get("SECRET_KEY")
 
 # --- CONFIGURAÇÃO DO FLASK-MAIL ---
@@ -29,10 +28,9 @@ app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = ('XMarkup Feedback', os.environ.get('MAIL_USERNAME'))
+app.config['MAIL_DEFAULT_SENDER'] = ('XMarkup', os.environ.get('MAIL_USERNAME'))
 
 mail = Mail(app)
-
 init_app(app)
 
 # --- CONFIGURAÇÃO DO FLASK-LOGIN ---
@@ -44,7 +42,37 @@ login_manager.login_message_category = "info"
 
 NFE_NAMESPACE = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
 
-# --- FILTROS E MODELO DE USUÁRIO ---
+# --- DECORATORS E HELPERS ---
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not getattr(current_user, 'is_admin', False):
+            flash("Acesso restrito a administradores.", "danger")
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def get_user_usage(db, user_id, last_reset_date=None):
+    start_date = datetime.now() - timedelta(days=30)
+    if last_reset_date:
+        if isinstance(last_reset_date, str):
+            try:
+                reset_date = datetime.strptime(last_reset_date, '%Y-%m-%d %H:%M:%S.%f')
+            except ValueError:
+                reset_date = datetime.strptime(last_reset_date, '%Y-%m-%d %H:%M:%S')
+        else:
+            reset_date = last_reset_date
+        
+        if reset_date and reset_date > start_date:
+            start_date = reset_date
+            
+    count = db.execute(
+        "SELECT COUNT(id) FROM precificacoes WHERE user_id = ? AND criado_em > ?",
+        (user_id, start_date)
+    ).fetchone()[0]
+    return count
+
+# --- FILTROS DE TEMPLATE ---
 @app.template_filter("brl")
 def format_as_brl(value):
     try:
@@ -60,27 +88,51 @@ def format_for_input_filter(value):
     except (ValueError, TypeError):
         return value
 
+# --- MODELO DE UTILIZADOR ---
 class User(UserMixin):
-    def __init__(self, id, email, password, nome_completo):
+    def __init__(self, id, email, password, nome_completo, is_admin=False, status_cliente='Safira', precificacao_limit=5, limit_reset_date=None):
         self.id = id
         self.email = email
         self.password = password
         self.nome_completo = nome_completo
+        self.is_admin = is_admin
+        self.status_cliente = status_cliente
+        self.precificacao_limit = precificacao_limit
+        self.limit_reset_date = limit_reset_date
+
+    def get_reset_token(self):
+        s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+        return s.dumps(self.id, salt='password-reset-salt')
+
+    @staticmethod
+    def verify_reset_token(token, expires_sec=1800):
+        s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+        try:
+            user_id = s.loads(token, salt='password-reset-salt', max_age=expires_sec)
+        except:
+            return None
+        db = get_db()
+        return db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
 
 @login_manager.user_loader
 def load_user(user_id):
     db = get_db()
     user_data = db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
     if user_data:
+        keys = user_data.keys()
         return User(
             id=user_data['id'],
             email=user_data['email'],
             password=user_data['password'],
-            nome_completo=user_data['nome_completo']
+            nome_completo=user_data['nome_completo'],
+            is_admin=user_data['is_admin'] if 'is_admin' in keys else False,
+            status_cliente=user_data['status_cliente'] if 'status_cliente' in keys else 'Safira',
+            precificacao_limit=user_data['precificacao_limit'] if 'precificacao_limit' in keys else 5,
+            limit_reset_date=user_data['limit_reset_date'] if 'limit_reset_date' in keys else None
         )
     return None
 
-# --- FUNÇÕES DE LÓGICA ---
+# --- LÓGICA DE NEGÓCIO ---
 def process_nfe_file(xml_file):
     try:
         xml_content = xml_file.read()
@@ -156,7 +208,37 @@ def generate_summary(products):
         summary[f"{channel}_media"] = sum(p.get(channel, 0) for p in products) / num_products if num_products > 0 else 0
     return summary
 
-# --- ROTAS DE AUTENTICAÇÃO ---
+# --- ROTAS PRINCIPAIS E DE AUTENTICAÇÃO ---
+@app.route('/')
+def home():
+    return render_template('home.html')
+    
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        db = get_db()
+        user_data = db.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+        if not user_data or not check_password_hash(user_data['password'], password):
+            flash('Email ou senha inválidos. Por favor, tente novamente.', 'danger')
+            return redirect(url_for('login'))
+        
+        keys = user_data.keys()
+        user = User(
+            id=user_data['id'],
+            email=user_data['email'],
+            password=user_data['password'],
+            nome_completo=user_data['nome_completo'],
+            is_admin=user_data['is_admin'] if 'is_admin' in keys else False,
+            status_cliente=user_data['status_cliente'] if 'status_cliente' in keys else 'Safira',
+            precificacao_limit=user_data['precificacao_limit'] if 'precificacao_limit' in keys else 5,
+            limit_reset_date=user_data['limit_reset_date'] if 'limit_reset_date' in keys else None
+        )
+        login_user(user)
+        return redirect(url_for('dashboard'))
+    return render_template('login.html')
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -189,26 +271,6 @@ def register():
         return redirect(url_for('login'))
     return render_template('register.html')
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        db = get_db()
-        user_data = db.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
-        if not user_data or not check_password_hash(user_data['password'], password):
-            flash('Email ou senha inválidos. Por favor, tente novamente.', 'danger')
-            return redirect(url_for('login'))
-        user = User(
-            id=user_data['id'],
-            email=user_data['email'],
-            password=user_data['password'],
-            nome_completo=user_data['nome_completo']
-        )
-        login_user(user)
-        return redirect(url_for('dashboard'))
-    return render_template('login.html')
-
 @app.route('/logout')
 @login_required
 def logout():
@@ -216,25 +278,68 @@ def logout():
     flash('Sessão terminada com sucesso.', 'info')
     return redirect(url_for('home'))
 
-# --- ROTAS PRINCIPAIS DA APLICAÇÃO ---
-@app.route('/')
-def home():
-    return render_template('home.html')
+# --- ROTAS DE RECUPERAÇÃO DE SENHA ---
+@app.route('/request_reset_password', methods=['GET', 'POST'])
+def request_reset_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        db = get_db()
+        user_data = db.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+        if user_data:
+            user = User(id=user_data['id'], email=user_data['email'], password=user_data['password'], nome_completo=user_data['nome_completo'])
+            token = user.get_reset_token()
+            msg = Message('Redefinição de Senha - XMarkup',
+                          recipients=[user.email])
+            msg.body = f'''Para redefinir a sua senha, visite o seguinte link:
+{url_for('reset_password', token=token, _external=True)}
 
+Se não foi você que fez este pedido, ignore este e-mail. Este link é válido por 30 minutos.
+'''
+            try:
+                mail.send(msg)
+                flash('Um e-mail foi enviado com as instruções para redefinir a sua senha.', 'info')
+            except Exception as e:
+                flash('Ocorreu um erro ao enviar o e-mail. Por favor, tente novamente mais tarde.', 'danger')
+                print(f"ERRO DE EMAIL: {e}")
+        else:
+            flash('Não foi encontrada nenhuma conta com esse e-mail.', 'warning')
+        return redirect(url_for('login'))
+    return render_template('request_reset.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    user_data = User.verify_reset_token(token)
+    if not user_data:
+        flash('O link de redefinição é inválido ou expirou.', 'warning')
+        return redirect(url_for('request_reset_password'))
+    
+    if request.method == 'POST':
+        password = request.form.get('password')
+        password_confirm = request.form.get('password_confirm')
+        if password != password_confirm:
+            flash('As senhas não coincidem.', 'danger')
+            return render_template('reset_password.html')
+            
+        hashed_password = generate_password_hash(password)
+        db = get_db()
+        db.execute('UPDATE users SET password = ? WHERE id = ?', (hashed_password, user_data['id']))
+        db.commit()
+        flash('A sua senha foi atualizada! Pode agora fazer o login.', 'success')
+        return redirect(url_for('login'))
+        
+    return render_template('reset_password.html')
+
+# --- ROTAS DA APLICAÇÃO ---
 @app.route('/precificador', methods=["GET", "POST"])
 @login_required
 def precificador():
     db = get_db()
-    thirty_days_ago = datetime.now() - timedelta(days=30)
-    contagem_recente = db.execute(
-        "SELECT COUNT(id) FROM precificacoes WHERE user_id = ? AND criado_em > ?",
-        (current_user.id, thirty_days_ago)
-    ).fetchone()[0]
-    limite_atingido = contagem_recente >= 5
+    contagem_recente = get_user_usage(db, current_user.id, current_user.limit_reset_date)
+    limite_atingido = contagem_recente >= current_user.precificacao_limit
 
     if request.method == "POST":
         if limite_atingido:
-            flash("Você atingiu o limite de 5 precificações nos últimos 30 dias.", "danger")
+            flash(f"Você atingiu o seu limite de {current_user.precificacao_limit} precificações.", "danger")
             return redirect(url_for('dashboard'))
 
         form_params = request.form.to_dict()
@@ -266,7 +371,7 @@ def precificador():
         except Exception as e:
             flash(f"Ocorreu um erro inesperado: {e}", "danger")
             return redirect(url_for('precificador'))
-
+            
     user_settings = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
     parametros = {
         'margem': user_settings['default_margem'],
@@ -281,55 +386,37 @@ def precificador():
         "precificador.html", 
         parametros=parametros,
         limite_atingido=limite_atingido, 
-        contagem_recente=contagem_recente
+        contagem_recente=contagem_recente,
+        limite_total=current_user.precificacao_limit
     )
-
-@app.route('/editar', methods=["POST"])
-@login_required
-def editar():
-    precificacao_id = session.get('precificacao_id')
-    if not precificacao_id:
-        flash("Sessão expirada. Por favor, processe um XML novamente.", "danger")
-        return redirect(url_for('precificador'))
-    flash("Ação não suportada. Use o botão 'Guardar Alterações'.", "warning")
-    return redirect(url_for('ver_precificacao', prec_id=precificacao_id))
-
-@app.route('/api/precificacao/<int:prec_id>/salvar', methods=['POST'])
-@login_required
-def salvar_precificacao(prec_id):
-    db = get_db()
-    prec_data = db.execute(
-        'SELECT id FROM precificacoes WHERE id = ? AND user_id = ?',
-        (prec_id, current_user.id)
-    ).fetchone()
-    if prec_data is None:
-        return jsonify({'status': 'error', 'message': 'Precificação não encontrada ou acesso negado.'}), 404
-    data = request.json
-    produtos_enviados = data.get('produtos')
-    parametros_enviados = data.get('parametros')
-    if not produtos_enviados or not parametros_enviados:
-        return jsonify({'status': 'error', 'message': 'Dados incompletos.'}), 400
-    try:
-        dados_atualizados_json = json.dumps(produtos_enviados)
-        parametros_atualizados_json = json.dumps(parametros_enviados)
-        db.execute("UPDATE precificacoes SET dados_json = ?, parametros_json = ? WHERE id = ?", 
-                   (dados_atualizados_json, parametros_atualizados_json, prec_id))
-        db.commit()
-        return jsonify({'status': 'success', 'message': 'Alterações guardadas com sucesso!'})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': f'Ocorreu um erro: {str(e)}'}), 500
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
     db = get_db()
-    db_precificacoes = db.execute(
+    search_nfe = request.args.get('search_nfe', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = 10 
+    all_precificacoes_raw = db.execute(
         'SELECT id, criado_em, dados_json FROM precificacoes WHERE user_id = ? ORDER BY criado_em DESC',
         (current_user.id,)
     ).fetchall()
+    filtered_precificacoes = []
+    if search_nfe:
+        for row in all_precificacoes_raw:
+            dados = json.loads(row['dados_json'])
+            if dados and any(item.get("Série NF-e", "") == search_nfe for item in dados):
+                filtered_precificacoes.append(row)
+    else:
+        filtered_precificacoes = all_precificacoes_raw
+    total_items = len(filtered_precificacoes)
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_precificacoes = filtered_precificacoes[start:end]
+    total_pages = (total_items + per_page - 1) // per_page
     kpis = {'custo_total': 0, 'receita_total': 0, 'lucro_total': 0, 'total_itens': 0}
     receita_por_canal = {'Meu Site': 0, 'Mercado Livre': 0, 'Shopee': 0}
-    for row in db_precificacoes:
+    for row in all_precificacoes_raw:
         dados = json.loads(row['dados_json'])
         for produto in dados:
             custo = produto.get('Custo Unitário (R$)', 0) * produto.get('Qtd', 0)
@@ -348,16 +435,60 @@ def dashboard():
         'data': list(receita_por_canal.values())
     }
     precificacoes_list = []
-    for row in db_precificacoes[:5]:
+    for row in paginated_precificacoes:
         dados = json.loads(row['dados_json'])
         resumo = generate_summary(dados)
+        nfe_num = dados[0].get("Série NF-e", "N/A") if dados else "N/A"
         precificacoes_list.append({
             'id': row['id'],
             'criado_em': datetime.strptime(row['criado_em'], '%Y-%m-%d %H:%M:%S'),
+            'nfe': nfe_num,
             'num_produtos': len(dados),
             'custo_total': resumo.get('custo_total', 0)
         })
-    return render_template('dashboard.html', precificacoes=precificacoes_list, kpis=kpis, chart_data=chart_data)
+    return render_template(
+        'dashboard.html', 
+        precificacoes=precificacoes_list, 
+        kpis=kpis, 
+        chart_data=chart_data,
+        page=page,
+        total_pages=total_pages,
+        search_nfe=search_nfe
+    )
+
+@app.route('/precificacao/<int:prec_id>')
+@login_required
+def ver_precificacao(prec_id):
+    db = get_db()
+    query = "SELECT dados_json, parametros_json FROM precificacoes WHERE id = ?"
+    params = (prec_id,)
+    if not getattr(current_user, 'is_admin', False):
+        query += " AND user_id = ?"
+        params = (prec_id, current_user.id)
+    prec_data = db.execute(query, params).fetchone()
+    if prec_data is None:
+        flash("Precificação não encontrada ou acesso não permitido.", "danger")
+        return redirect(url_for('dashboard'))
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    produtos_todos = json.loads(prec_data['dados_json'])
+    parametros = json.loads(prec_data['parametros_json']) if prec_data['parametros_json'] else {}
+    resumo = generate_summary(produtos_todos)
+    session['precificacao_id'] = prec_id
+    total_items = len(produtos_todos)
+    start = (page - 1) * per_page
+    end = start + per_page
+    produtos_paginados = produtos_todos[start:end]
+    total_pages = (total_items + per_page - 1) // per_page
+    return render_template(
+        'precificador.html', 
+        produtos=produtos_paginados,
+        resumo=resumo, 
+        parametros=parametros,
+        page=page,
+        total_pages=total_pages,
+        prec_id=prec_id
+    )
 
 @app.route('/perfil')
 @login_required
@@ -366,7 +497,12 @@ def perfil():
     user_data = db.execute(
         'SELECT * FROM users WHERE id = ?', (current_user.id,)
     ).fetchone()
-    return render_template('perfil.html', user=user_data)
+    uso_recente = get_user_usage(db, current_user.id, current_user.limit_reset_date)
+    return render_template(
+        'perfil.html', 
+        user=user_data, 
+        uso_recente=uso_recente
+    )
 
 @app.route('/perfil/editar', methods=['GET', 'POST'])
 @login_required
@@ -392,24 +528,7 @@ def editar_perfil():
         'SELECT * FROM users WHERE id = ?', (current_user.id,)
     ).fetchone()
     return render_template('editar_perfil.html', user=user_data)
-
-@app.route('/precificacao/<int:prec_id>')
-@login_required
-def ver_precificacao(prec_id):
-    db = get_db()
-    prec_data = db.execute(
-        'SELECT dados_json, parametros_json FROM precificacoes WHERE id = ? AND user_id = ?',
-        (prec_id, current_user.id)
-    ).fetchone()
-    if prec_data is None:
-        flash("Precificação não encontrada ou não pertence a este usuário.", "danger")
-        return redirect(url_for('dashboard'))
-    produtos = json.loads(prec_data['dados_json'])
-    parametros = json.loads(prec_data['parametros_json']) if prec_data['parametros_json'] else {}
-    resumo = generate_summary(produtos)
-    session['precificacao_id'] = prec_id
-    return render_template('precificador.html', produtos=produtos, resumo=resumo, parametros=parametros)
-
+    
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
 def settings():
@@ -465,6 +584,157 @@ def feedback():
         flash("Ocorreu um erro ao tentar enviar a sua mensagem. Por favor, tente novamente mais tarde.", "danger")
     return redirect(url_for('status'))
 
+# --- ROTAS DE ADMIN ---
+@app.route('/admin/dashboard')
+@login_required
+@admin_required
+def admin_dashboard():
+    db = get_db()
+    all_users_raw = db.execute("SELECT * FROM users ORDER BY nome_completo").fetchall()
+    
+    all_users = []
+    for user_row in all_users_raw:
+        user = dict(user_row)
+        keys = user_row.keys()
+        reset_date = user_row['limit_reset_date'] if 'limit_reset_date' in keys else None
+        user['uso_recente'] = get_user_usage(db, user['id'], reset_date)
+        all_users.append(user)
+
+    all_precificacoes = db.execute("""
+        SELECT p.id, p.criado_em, p.dados_json, u.nome_completo as user_nome
+        FROM precificacoes p JOIN users u ON p.user_id = u.id
+        ORDER BY p.criado_em DESC
+        LIMIT 10
+    """).fetchall()
+    
+    precificacoes_list = []
+    for row in all_precificacoes:
+        dados = json.loads(row['dados_json'])
+        nfe_num = dados[0].get("Série NF-e", "N/A") if dados else "N/A"
+        precificacoes_list.append({
+            'id': row['id'],
+            'user_nome': row['user_nome'],
+            'criado_em': datetime.strptime(row['criado_em'], '%Y-%m-%d %H:%M:%S'),
+            'num_produtos': len(dados),
+            'nfe': nfe_num,
+            'custo_total': generate_summary(dados).get('custo_total', 0)
+        })
+
+    kpis = {
+        'total_users': len(all_users),
+        'total_precificacoes': db.execute("SELECT COUNT(id) FROM precificacoes").fetchone()[0]
+    }
+    return render_template(
+        'admin_dashboard.html', 
+        users=all_users, 
+        precificacoes=precificacoes_list,
+        kpis=kpis
+    )
+
+@app.route('/admin/cliente/<int:user_id>')
+@login_required
+@admin_required
+def ver_cliente(user_id):
+    db = get_db()
+    cliente = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not cliente:
+        flash("Cliente não encontrado.", "danger")
+        return redirect(url_for('admin_dashboard'))
+        
+    historico_raw = db.execute(
+        "SELECT id, criado_em, dados_json FROM precificacoes WHERE user_id = ? ORDER BY criado_em DESC", (user_id,)
+    ).fetchall()
+    
+    keys = cliente.keys()
+    reset_date = cliente['limit_reset_date'] if 'limit_reset_date' in keys else None
+    uso_recente = get_user_usage(db, cliente['id'], reset_date)
+    
+    historico_list = []
+    for row in historico_raw:
+        dados = json.loads(row['dados_json'])
+        historico_list.append({
+            'id': row['id'],
+            'criado_em': datetime.strptime(row['criado_em'], '%Y-%m-%d %H:%M:%S'),
+            'num_produtos': len(dados)
+        })
+
+    return render_template('admin_cliente_detalhes.html', cliente=cliente, historico=historico_list, uso_recente=uso_recente)
+
+@app.route('/admin/cliente/<int:user_id>/update_limit', methods=['POST'])
+@login_required
+@admin_required
+def update_client_limit(user_id):
+    try:
+        novo_limite = int(request.form.get('novo_limite'))
+        if novo_limite < 0:
+            flash("O limite não pode ser negativo.", "danger")
+        else:
+            db = get_db()
+            db.execute("UPDATE users SET precificacao_limit = ? WHERE id = ?", (novo_limite, user_id))
+            db.commit()
+            flash("Limite do cliente atualizado com sucesso!", "success")
+    except (ValueError, TypeError):
+        flash("Por favor, insira um número válido para o limite.", "danger")
+    
+    return redirect(url_for('ver_cliente', user_id=user_id))
+
+@app.route('/admin/cliente/<int:user_id>/reset_usage', methods=['POST'])
+@login_required
+@admin_required
+def reset_client_usage(user_id):
+    db = get_db()
+    now = datetime.now()
+    db.execute("UPDATE users SET limit_reset_date = ? WHERE id = ?", (now, user_id))
+    db.commit()
+    flash("O contador de uso do cliente foi resetado com sucesso!", "success")
+    return redirect(url_for('ver_cliente', user_id=user_id))
+    
+@app.route('/admin/cliente/<int:user_id>/update_status', methods=['POST'])
+@login_required
+@admin_required
+def update_client_status(user_id):
+    novo_status = request.form.get('novo_status')
+    if novo_status not in ['Safira', 'Esmeralda', 'Diamante']:
+        flash("Status inválido selecionado.", "danger")
+        return redirect(url_for('ver_cliente', user_id=user_id))
+
+    db = get_db()
+    db.execute("UPDATE users SET status_cliente = ? WHERE id = ?", (novo_status, user_id))
+    db.commit()
+    flash("Status do cliente atualizado com sucesso!", "success")
+    return redirect(url_for('ver_cliente', user_id=user_id))
+
+@app.route('/admin/precificacao/<int:prec_id>/resumo')
+@login_required
+@admin_required
+def admin_ver_resumo_precificacao(prec_id):
+    db = get_db()
+    prec_data = db.execute("""
+        SELECT p.id, p.dados_json, p.criado_em, u.nome_completo as user_nome
+        FROM precificacoes p JOIN users u ON p.user_id = u.id
+        WHERE p.id = ?
+    """, (prec_id,)).fetchone()
+    if not prec_data:
+        flash("Precificação não encontrada.", "danger")
+        return redirect(url_for('admin_dashboard'))
+    dados = json.loads(prec_data['dados_json'])
+    resumo_geral = generate_summary(dados)
+    nfe_de_cada_produto = [item.get("Série NF-e", "N/A") for item in dados]
+    nfe_counts = Counter(nfe_de_cada_produto)
+    nfe_info = sorted(nfe_counts.items())
+    criado_em_dt = datetime.strptime(prec_data['criado_em'], '%Y-%m-%d %H:%M:%S')
+    return render_template(
+        'admin_precificacao_resumo.html',
+        prec={
+            'id': prec_data['id'],
+            'user_nome': prec_data['user_nome'],
+            'criado_em': criado_em_dt
+        },
+        resumo=resumo_geral,
+        nfe_info=nfe_info
+    )
+
+# --- ROTAS DE DOWNLOAD ---
 def mapear_para_shopee(produtos):
     produtos_shopee = []
     for prod in produtos:
@@ -487,10 +757,12 @@ def mapear_para_shopee(produtos):
 @login_required
 def baixar_planilha_shopee(prec_id):
     db = get_db()
-    prec_data = db.execute(
-        'SELECT dados_json FROM precificacoes WHERE id = ? AND user_id = ?',
-        (prec_id, current_user.id)
-    ).fetchone()
+    query = "SELECT dados_json FROM precificacoes WHERE id = ?"
+    params = (prec_id,)
+    if not getattr(current_user, 'is_admin', False):
+        query += " AND user_id = ?"
+        params = (prec_id, current_user.id)
+    prec_data = db.execute(query, params).fetchone()
     if prec_data is None:
         flash("Precificação não encontrada.", "danger")
         return redirect(url_for('dashboard'))
@@ -511,22 +783,16 @@ def baixar_planilha_shopee(prec_id):
 @login_required
 def baixar_planilha_completa(prec_id):
     db = get_db()
-    prec_data = db.execute(
-        'SELECT dados_json FROM precificacoes WHERE id = ? AND user_id = ?',
-        (prec_id, current_user.id)
-    ).fetchone()
+    query = "SELECT dados_json FROM precificacoes WHERE id = ?"
+    params = (prec_id,)
+    if not getattr(current_user, 'is_admin', False):
+        query += " AND user_id = ?"
+        params = (prec_id, current_user.id)
+    prec_data = db.execute(query, params).fetchone()
     if prec_data is None:
-        flash("Precificação não encontrada.", "danger")
+        flash("Precificação não encontrada ou acesso negado.", "danger")
         return redirect(url_for('dashboard'))
     produtos = json.loads(prec_data['dados_json'])
-    colunas_para_formatar = [
-        'Custo Unitário (R$)', 'Preço Venda Site (R$)', 'Mercado Livre (R$)',
-        'Shopee (R$)'
-    ]
-    for produto in produtos:
-        for coluna in colunas_para_formatar:
-            if coluna in produto:
-                produto[coluna] = round(produto[coluna], 2)
     df = pd.DataFrame(produtos)
     output = BytesIO()
     df.to_excel(output, index=False, sheet_name='Precificação Completa')
@@ -557,12 +823,14 @@ def mapear_para_ml(produtos):
 @login_required
 def baixar_planilha_ml(prec_id):
     db = get_db()
-    prec_data = db.execute(
-        'SELECT dados_json FROM precificacoes WHERE id = ? AND user_id = ?',
-        (prec_id, current_user.id)
-    ).fetchone()
+    query = "SELECT dados_json FROM precificacoes WHERE id = ?"
+    params = (prec_id,)
+    if not getattr(current_user, 'is_admin', False):
+        query += " AND user_id = ?"
+        params = (prec_id, current_user.id)
+    prec_data = db.execute(query, params).fetchone()
     if prec_data is None:
-        flash("Precificação não encontrada.", "danger")
+        flash("Precificação não encontrada ou acesso negado.", "danger")
         return redirect(url_for('dashboard'))
     produtos_originais = json.loads(prec_data['dados_json'])
     produtos_mapeados = mapear_para_ml(produtos_originais)
@@ -580,7 +848,6 @@ def baixar_planilha_ml(prec_id):
 @app.route('/baixar/historico_completo')
 @login_required
 def baixar_historico_completo():
-    """Gera e envia uma planilha Excel com todas as precificações do usuário."""
     db = get_db()
     db_precificacoes = db.execute(
         'SELECT id, criado_em, dados_json FROM precificacoes WHERE user_id = ? ORDER BY criado_em DESC',
@@ -605,6 +872,25 @@ def baixar_historico_completo():
         as_attachment=True,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+# --- COMANDO CLI PARA PROMOVER UTILIZADOR A ADMIN ---
+@app.cli.command("promote-user")
+@click.argument("email")
+def promote_user_command(email):
+    """Atribui privilégios de administrador a um utilizador existente."""
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    
+    if user is None:
+        print(f"Erro: Utilizador com o e-mail '{email}' não encontrado.")
+        return
 
+    if user['is_admin']:
+        print(f"Aviso: O utilizador '{email}' já é um administrador.")
+        return
+
+    db.execute("UPDATE users SET is_admin = 1 WHERE email = ?", (email,))
+    db.commit()
+    print(f"Sucesso: O utilizador '{email}' foi promovido a administrador.")
+    
 if __name__ == "__main__":
     app.run(debug=True)

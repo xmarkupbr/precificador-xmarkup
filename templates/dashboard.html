@@ -65,40 +65,69 @@
             </div>
         </div>
     </div>
-
-    <div class="row">
-        <div class="col-lg-7 mb-4">
-            <div class="card h-100">
-                <div class="card-header fw-bold">
-                    Receita Estimada por Canal de Venda
-                </div>
-                <div class="card-body">
-                    {% if chart_data and chart_data.data|sum > 0 %}
-                        <canvas id="receitaPorCanalChart"></canvas>
-                    {% else %}
-                        <div class="d-flex align-items-center justify-content-center h-100 text-muted">
-                            <p>Não há dados suficientes para exibir o gráfico.</p>
+    
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="mb-3">Receita por Canal</h4>
+        </div>
+        {% if chart_data and chart_data.data|sum > 0 %}
+            {% for i in range(chart_data.labels|length) %}
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <div class="card kpi-card h-100" style="--kpi-color: #6c757d;">
+                        <div class="card-body">
+                            <div class="kpi-text">
+                                <h6 class="kpi-title">{{ chart_data.labels[i] }}</h6>
+                                <h4 class="kpi-value">{{ chart_data.data[i]|brl }}</h4>
+                            </div>
+                            <div class="kpi-icon">
+                                {% if chart_data.labels[i] == 'Meu Site' %}
+                                    <span class="mdi mdi-web"></span>
+                                {% elif chart_data.labels[i] == 'Mercado Livre' %}
+                                    <span class="mdi mdi-shopping-outline"></span>
+                                {% elif chart_data.labels[i] == 'Shopee' %}
+                                    <span class="mdi mdi-shopping"></span>
+                                {% endif %}
+                            </div>
                         </div>
-                    {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="alert alert-light text-center" role="alert">
+                    Não há dados de receita suficientes para exibir.
                 </div>
             </div>
-        </div>
+        {% endif %}
+    </div>
 
-        <div class="col-lg-5 mb-4">
-             <div class="card h-100">
+    <div class="row">
+        <div class="col-12 mb-4">
+             <div class="card h-100 d-flex flex-column">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span class="fw-bold">Histórico Recente</span>
+                    <span class="fw-bold">Histórico de Precificações</span>
                     <a href="{{ url_for('baixar_historico_completo') }}" class="btn btn-sm btn-outline-success">
                         <span class="mdi mdi-content-save-all-outline me-1"></span>Salvar Histórico Completo
                     </a>
                 </div>
-                <div class="card-body p-0">
+                
+                <div class="card-body pb-0">
+                    <form method="GET" action="{{ url_for('dashboard') }}">
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="search_nfe" placeholder="Buscar por Nº da NF-e..." value="{{ search_nfe or '' }}">
+                            <button class="btn btn-outline-secondary" type="submit"><span class="mdi mdi-magnify"></span></button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card-body p-0 flex-grow-1">
                      {% if precificacoes %}
                         <div class="table-responsive">
                             <table class="table table-hover mb-0 history-table">
                                 <thead>
                                     <tr>
                                         <th>Data</th>
+                                        <th>NF-e</th>
                                         <th>Nº de Itens</th>
                                         <th>Custo Total</th>
                                         <th>Ação</th>
@@ -108,6 +137,7 @@
                                     {% for prec in precificacoes %}
                                     <tr>
                                         <td>{{ prec.criado_em.strftime('%d/%m/%y %H:%M') }}</td>
+                                        <td>{{ prec.nfe }}</td>
                                         <td>{{ prec.num_produtos }}</td>
                                         <td>{{ prec.custo_total|brl }}</td>
                                         <td>
@@ -122,85 +152,36 @@
                         <div class="d-flex align-items-center justify-content-center h-100">
                              <div class="text-center text-muted p-4">
                                 <span class="mdi mdi-information-outline fs-3"></span>
-                                <p class="mt-2 mb-0">Você ainda não fez nenhuma precificação.</p>
+                                <p class="mt-2 mb-0">Nenhuma precificação encontrada.</p>
+                                {% if search_nfe %}
+                                <p><a href="{{ url_for('dashboard') }}">Limpar busca</a></p>
+                                {% endif %}
                             </div>
                         </div>
                     {% endif %}
                 </div>
-                <div class="card-footer text-center text-muted small">
-                    <span class="mdi mdi-alert-outline"></span>
-                    O histórico de precificações é mantido por 30 dias. Salve o seu histórico completo regularmente.
+                
+                {% if total_pages > 1 %}
+                <div class="card-footer d-flex justify-content-center">
+                    <nav aria-label="Paginação do Histórico">
+                        <ul class="pagination mb-0">
+                            <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('dashboard', page=page-1, search_nfe=search_nfe) }}">Anterior</a>
+                            </li>
+                            {% for p in range(1, total_pages + 1) %}
+                                <li class="page-item {% if p == page %}active{% endif %}">
+                                    <a class="page-link" href="{{ url_for('dashboard', page=p, search_nfe=search_nfe) }}">{{ p }}</a>
+                                </li>
+                            {% endfor %}
+                            <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('dashboard', page=page+1, search_nfe=search_nfe) }}">Próximo</a>
+                            </li>
+                        </ul>
+                    </nav>
                 </div>
+                {% endif %}
              </div>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    {% if chart_data and chart_data.data|sum > 0 %}
-    document.addEventListener('DOMContentLoaded', function () {
-        const ctx = document.getElementById('receitaPorCanalChart').getContext('2d');
-        const chartData = {{ chart_data|tojson }};
-
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: chartData.labels,
-                datasets: [{
-                    label: 'Receita Estimada (R$)',
-                    data: chartData.data,
-                    backgroundColor: [
-                        'rgba(255, 99, 132, 0.6)',
-                        'rgba(54, 162, 235, 0.6)',
-                        'rgba(255, 206, 86, 0.6)',
-                        'rgba(75, 192, 192, 0.6)'
-                    ],
-                    borderColor: [
-                        'rgba(255, 99, 132, 1)',
-                        'rgba(54, 162, 235, 1)',
-                        'rgba(255, 206, 86, 1)',
-                        'rgba(75, 192, 192, 1)'
-                    ],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value, index, values) {
-                                return 'R$ ' + value.toLocaleString('pt-BR');
-                            }
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
-                                if (context.parsed.y !== null) {
-                                    label += new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(context.parsed.y);
-                                }
-                                return label;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    });
-    {% endif %}
-</script>
 {% endblock %}

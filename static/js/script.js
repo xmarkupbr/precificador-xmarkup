@@ -1,8 +1,24 @@
-$(document).ready(function() {
-    console.log("XMarkup JS: Documento pronto. Iniciando script.");
+/**
+ * Ficheiro: static/js/script.js
+ * Descrição: Script principal da página de precificação, refatorado para usar JavaScript moderno (Vanilla JS) sem jQuery.
+ */
+
+// Executa o script quando o conteúdo do HTML estiver completamente carregado.
+// Equivalente a $(document).ready()
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("XMarkup JS: Documento pronto. Iniciando script com Vanilla JS.");
+
+    // --- VARIÁVEIS GLOBAIS ---
+    let allRows = [];
+    let filteredRows = [];
+    let currentPage = 1;
+    const rowsPerPage = 50;
+    
+    // --- FUNÇÕES UTILITÁRIAS ---
 
     function saveParametersToLocalStorage() {
         const params = getParametros();
+        // O localStorage já usa JavaScript nativo.
         localStorage.setItem('xmarkup_params', JSON.stringify(params));
         console.log("Parâmetros guardados no Local Storage.");
     }
@@ -13,15 +29,20 @@ $(document).ready(function() {
             console.log("Parâmetros encontrados no Local Storage. A carregar...");
             const params = JSON.parse(savedParams);
             Object.keys(params).forEach(key => {
-                $(`input[name="${key}"]`).val(params[key]);
+                // querySelector para selecionar o input pelo nome.
+                const input = document.querySelector(`input[name="${key}"]`);
+                if (input) {
+                    input.value = params[key];
+                }
             });
         } else {
             console.log("Nenhum parâmetro encontrado no Local Storage.");
         }
     }
-
+    
     function formatCurrency(value) {
         if (isNaN(value)) return "R$ 0,00";
+        // Intl.NumberFormat é a forma nativa e correta de formatar moeda.
         return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
     }
 
@@ -30,130 +51,146 @@ $(document).ready(function() {
         return parseFloat(text.replace(/[R$\s.]/g, "").replace(",", ".")) || 0;
     }
 
+    // --- FUNÇÕES DE CÁLCULO E ATUALIZAÇÃO ---
+
     function getParametros() {
         const params = {};
-        $("input[name^='margem'], input[name^='comissao_'], input[name^='frete_']").each(function() {
-            params[this.name] = $(this).val();
+        // querySelectorAll para obter todos os inputs que correspondem ao seletor.
+        document.querySelectorAll("input[name^='margem'], input[name^='comissao_'], input[name^='frete_']").forEach(input => {
+            params[input.name] = input.value;
         });
         return params;
     }
 
     function recalculateRow(row) {
-        const paramsConfig = {
-            margem: parseFloat($("input[name='margem']").val().replace(',', '.')) / 100 || 0,
-            comissoes: {
-                site: parseFloat($("input[name='comissao_site']").val().replace(',', '.')) / 100 || 0,
-                ml: parseFloat($("input[name='comissao_ml']").val().replace(',', '.')) / 100 || 0,
-                shopee: parseFloat($("input[name='comissao_shopee']").val().replace(',', '.')) / 100 || 0,
-            },
-            fretes: {
-                site: parseFloat($("input[name='frete_site']").val().replace(',', '.')) || 0,
-                ml: parseFloat($("input[name='frete_ml']").val().replace(',', '.')) || 0,
-                shopee: parseFloat($("input[name='frete_shopee']").val().replace(',', '.')) || 0,
-            }
+        // Obter os parâmetros de configuração
+        const margem = parseFloat(document.querySelector("input[name='margem']").value.replace(',', '.')) / 100 || 0;
+        const comissoes = {
+            site: parseFloat(document.querySelector("input[name='comissao_site']").value.replace(',', '.')) / 100 || 0,
+            ml: parseFloat(document.querySelector("input[name='comissao_ml']").value.replace(',', '.')) / 100 || 0,
+            shopee: parseFloat(document.querySelector("input[name='comissao_shopee']").value.replace(',', '.')) / 100 || 0,
         };
-        const qtd = parseFloat($(row).find("input[name='qtd[]']").val()) || 0;
+        const fretes = {
+            site: parseFloat(document.querySelector("input[name='frete_site']").value.replace(',', '.')) || 0,
+            ml: parseFloat(document.querySelector("input[name='frete_ml']").value.replace(',', '.')) || 0,
+            shopee: parseFloat(document.querySelector("input[name='frete_shopee']").value.replace(',', '.')) || 0,
+        };
+        
+        const qtdInput = row.querySelector("input[name='qtd[]']");
+        const qtd = parseFloat(qtdInput.value) || 0;
         if (qtd <= 0) return;
 
-        const valorTotal = parseFloat($(row).data("valor-total")) || 0;
-        const totalValorItensNFe = allRows.reduce((sum, el) => sum + parseFloat($(el).data("valor-total")), 0);
+        // data-* attributes são acedidos via `dataset`
+        const valorTotal = parseFloat(row.dataset.valorTotal) || 0;
+        const totalValorItensNFe = allRows.reduce((sum, el) => sum + parseFloat(el.dataset.valorTotal), 0);
         
         const proporcao = totalValorItensNFe > 0 ? valorTotal / totalValorItensNFe : 0;
-        const freteItem = proporcao * (parseFloat($(row).data("frete-total")) || 0);
-        const seguroItem = proporcao * (parseFloat($(row).data("seguro-total")) || 0);
-        const outrosItem = proporcao * (parseFloat($(row).data("outros-total")) || 0);
-        const descItem = proporcao * (parseFloat($(row).data("desc-total")) || 0);
-        const impostos = parseFloat($(row).data("impostos")) || 0;
+        const freteItem = proporcao * (parseFloat(row.dataset.freteTotal) || 0);
+        const seguroItem = proporcao * (parseFloat(row.dataset.seguroTotal) || 0);
+        const outrosItem = proporcao * (parseFloat(row.dataset.outrosTotal) || 0);
+        const descItem = proporcao * (parseFloat(row.dataset.descTotal) || 0);
+        const impostos = parseFloat(row.dataset.impostos) || 0;
 
         const custoTotal = (valorTotal + impostos + freteItem + seguroItem + outrosItem - descItem);
         const custoUnit = custoTotal / qtd;
 
-        $(row).data("custo-unitario", custoUnit);
-        $(row).find(".cell-custo-unitario").text(formatCurrency(custoUnit));
+        row.dataset.custoUnitario = custoUnit;
+        row.querySelector(".cell-custo-unitario").textContent = formatCurrency(custoUnit);
 
-        const custoUnitComMargem = custoUnit * (1 + paramsConfig.margem);
+        const custoUnitComMargem = custoUnit * (1 + margem);
         
         const precos = {
-            site: (1 - paramsConfig.comissoes.site) !== 0 ? (custoUnitComMargem + paramsConfig.fretes.site) / (1 - paramsConfig.comissoes.site) : 0,
-            ml: (1 - paramsConfig.comissoes.ml) !== 0 ? (custoUnitComMargem + paramsConfig.fretes.ml) / (1 - paramsConfig.comissoes.ml) : 0,
-            shopee: (1 - paramsConfig.comissoes.shopee) !== 0 ? (custoUnitComMargem + paramsConfig.fretes.shopee) / (1 - paramsConfig.comissoes.shopee) : 0,
+            site: (1 - comissoes.site) !== 0 ? (custoUnitComMargem + fretes.site) / (1 - comissoes.site) : 0,
+            ml: (1 - comissoes.ml) !== 0 ? (custoUnitComMargem + fretes.ml) / (1 - comissoes.ml) : 0,
+            shopee: (1 - comissoes.shopee) !== 0 ? (custoUnitComMargem + fretes.shopee) / (1 - comissoes.shopee) : 0,
         };
 
         Object.keys(precos).forEach(plataforma => {
-            const span = $(row).find(`.cell-preco-${plataforma} span`);
-            span.text(formatCurrency(precos[plataforma]));
-            if (precos[plataforma] < custoUnit) {
-                 span.addClass("bg-danger text-white p-1 rounded");
-            } else {
-                 span.removeClass("bg-danger text-white p-1 rounded");
+            const span = row.querySelector(`.cell-preco-${plataforma} span`);
+            if (span) {
+                span.textContent = formatCurrency(precos[plataforma]);
+                // classList para manipular classes CSS.
+                if (precos[plataforma] < custoUnit) {
+                    span.classList.add("bg-danger", "text-white", "p-1", "rounded");
+                } else {
+                    span.classList.remove("bg-danger", "text-white", "p-1", "rounded");
+                }
             }
         });
     }
 
     function recalculateAllRows() {
-        $("#tabela-produtos tbody tr").each(function() {
-            recalculateRow(this);
-        });
+        document.querySelectorAll("#tabela-produtos tbody tr").forEach(recalculateRow);
         updateResumo();
         updatePriceAlerts();
     }
-
+    
     function updateResumo() {
         let totalQtd = 0;
         let custoTotal = 0;
         const totaisVenda = { site: 0, ml: 0, shopee: 0 };
         const precosMedios = { site: 0, ml: 0, shopee: 0 };
         
-        filteredRows.forEach(row => {
-            const qtd = parseFloat($(row).find("input[name='qtd[]']").val()) || 0;
-            const custoUnit = parseFloat($(row).data("custo-unitario")) || 0;
+        const visibleRows = filteredRows.filter(row => row.style.display !== 'none');
+
+        visibleRows.forEach(row => {
+            const qtd = parseFloat(row.querySelector("input[name='qtd[]']").value) || 0;
+            const custoUnit = parseFloat(row.dataset.custoUnitario) || 0;
             
             totalQtd += qtd;
             custoTotal += custoUnit * qtd;
 
             Object.keys(totaisVenda).forEach(p => {
-                const preco = parseCurrency($(row).find(`.cell-preco-${p} span`).text());
+                const span = row.querySelector(`.cell-preco-${p} span`);
+                const preco = span ? parseCurrency(span.textContent) : 0;
                 totaisVenda[p] += preco * qtd;
                 precosMedios[p] += preco;
             });
         });
 
-        const numTotalItens = filteredRows.length;
-        $("#resumo-qtd-total").text(totalQtd.toFixed(0));
-        $("#resumo-custo-total").text(formatCurrency(custoTotal));
+        const numTotalItens = visibleRows.length;
+        document.getElementById("resumo-qtd-total").textContent = totalQtd.toFixed(0);
+        document.getElementById("resumo-custo-total").textContent = formatCurrency(custoTotal);
 
         Object.keys(totaisVenda).forEach(p => {
-            $(`#resumo-${p}-total`).text(formatCurrency(totaisVenda[p]));
-            $(`#resumo-${p}-media`).text(formatCurrency(numTotalItens > 0 ? precosMedios[p] / numTotalItens : 0));
+            document.getElementById(`resumo-${p}-total`).textContent = formatCurrency(totaisVenda[p]);
+            document.getElementById(`resumo-${p}-media`).textContent = formatCurrency(numTotalItens > 0 ? precosMedios[p] / numTotalItens : 0);
         });
     }
 
     function updatePriceAlerts() {
-        $('[data-bs-toggle="tooltip"]').tooltip('dispose');
-        $("#tabela-produtos tbody tr span").each(function() {
-            const span = $(this);
+        document.querySelectorAll("#tabela-produtos tbody tr span").forEach(span => {
             const row = span.closest('tr');
-            const custoUnit = parseFloat(row.data('custo-unitario')) || 0;
-            const preco = parseCurrency(span.text());
+            if (!row) return;
+
+            const custoUnit = parseFloat(row.dataset.custoUnitario) || 0;
+            const preco = parseCurrency(span.textContent);
 
             if (preco < custoUnit && preco > 0) {
-                span.attr('data-bs-toggle', 'tooltip');
-                span.attr('data-bs-title', 'Preço abaixo do custo!');
+                span.setAttribute('data-bs-toggle', 'tooltip');
+                span.setAttribute('data-bs-title', 'Preço abaixo do custo!');
             } else {
-                span.removeAttr('data-bs-toggle');
-                span.removeAttr('data-bs-title');
+                span.removeAttribute('data-bs-toggle');
+                span.removeAttribute('data-bs-title');
             }
         });
-        $('[data-bs-toggle="tooltip"]').tooltip({ trigger: "hover" });
+        
+        // Reinicializa os tooltips do Bootstrap
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl, { trigger: 'hover' });
+        });
     }
-
+    
+    // --- LÓGICA DE PAGINAÇÃO E FILTRO ---
+    
     function showPage(page) {
         currentPage = page;
         const start = (currentPage - 1) * rowsPerPage;
         const end = start + rowsPerPage;
         
-        $(allRows).hide();
-        $(filteredRows.slice(start, end)).show();
+        allRows.forEach(row => row.style.display = 'none'); // Esconde todas
+        filteredRows.slice(start, end).forEach(row => row.style.display = ''); // Mostra as da página
         
         updatePaginationControls();
         updateTableInfo();
@@ -161,16 +198,21 @@ $(document).ready(function() {
     }
 
     function updatePaginationControls() {
-        const paginationContainer = $("#pagination");
-        paginationContainer.empty();
+        const paginationContainer = document.getElementById("pagination");
+        paginationContainer.innerHTML = ''; // Limpa a paginação
         const numPages = Math.ceil(filteredRows.length / rowsPerPage);
 
         if (numPages <= 1) return;
 
         for (let i = 1; i <= numPages; i++) {
-            const pageItem = $(`<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="#">${i}</a></li>`);
-            pageItem.on("click", (e) => { e.preventDefault(); showPage(i); });
-            paginationContainer.append(pageItem);
+            const pageItem = document.createElement('li');
+            pageItem.className = `page-item ${i === currentPage ? 'active' : ''}`;
+            pageItem.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+            pageItem.addEventListener('click', (e) => {
+                e.preventDefault();
+                showPage(i);
+            });
+            paginationContainer.appendChild(pageItem);
         }
     }
     
@@ -178,7 +220,7 @@ $(document).ready(function() {
         const total = filteredRows.length;
         const start = total > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0;
         const end = Math.min(start + rowsPerPage - 1, total);
-        $("#table-info").text(`Mostrando ${start}-${end} de ${total} produtos`);
+        document.getElementById("table-info").textContent = `Mostrando ${start}-${end} de ${total} produtos`;
     }
 
     function filterTable(searchTerm) {
@@ -187,44 +229,47 @@ $(document).ready(function() {
             filteredRows = [...allRows];
         } else {
             filteredRows = allRows.filter(row => {
-                const codigo = $(row).find("input[name='codigo[]']").val().toLowerCase();
-                const nome = $(row).find("input[name='nome[]']").val().toLowerCase();
+                const codigo = row.querySelector("input[name='codigo[]']").value.toLowerCase();
+                const nome = row.querySelector("input[name='nome[]']").value.toLowerCase();
                 return codigo.includes(term) || nome.includes(term);
             });
         }
-        showPage(1);
+        showPage(1); // Volta para a primeira página após o filtro
     }
 
+    // --- AJAX E TOASTS ---
+    
     function saveChangesViaAjax() {
-        const btn = $("#btn-salvar-ajax");
-        const originalText = btn.html();
-        const precId = btn.data('prec-id');
+        const btn = document.getElementById("btn-salvar-ajax");
+        const originalText = btn.innerHTML;
+        const precId = btn.dataset.precId;
 
-        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>A Guardar...');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>A Guardar...';
 
         const produtos = [];
-        $("#tabela-produtos tbody tr").each(function() {
-            const row = $(this);
+        document.querySelectorAll("#tabela-produtos tbody tr").forEach(row => {
             produtos.push({
-                'Série NF-e': row.find('td:first').text(),
-                'valor_total': row.data('valor-total'),
-                'impostos': row.data('impostos'),
-                'frete_total': row.data('frete-total'),
-                'seguro_total': row.data('seguro-total'),
-                'outros_total': row.data('outros-total'),
-                'desc_total': row.data('desc-total'),
-                'Código': row.find("input[name='codigo[]']").val(),
-                'Nome': row.find("input[name='nome[]']").val(),
-                'Qtd': parseFloat(row.find("input[name='qtd[]']").val()),
-                'Custo Unitário (R$)': row.data('custo-unitario'),
-                'Preço Venda Site (R$)': parseCurrency(row.find('.cell-preco-site span').text()),
-                'Mercado Livre (R$)': parseCurrency(row.find('.cell-preco-ml span').text()),
-                'Shopee (R$)': parseCurrency(row.find('.cell-preco-shopee span').text()),
+                'Série NF-e': row.cells[0].textContent,
+                'valor_total': row.dataset.valorTotal,
+                'impostos': row.dataset.impostos,
+                'frete_total': row.dataset.freteTotal,
+                'seguro_total': row.dataset.seguroTotal,
+                'outros_total': row.dataset.outrosTotal,
+                'desc_total': row.dataset.descTotal,
+                'Código': row.querySelector("input[name='codigo[]']").value,
+                'Nome': row.querySelector("input[name='nome[]']").value,
+                'Qtd': parseFloat(row.querySelector("input[name='qtd[]']").value),
+                'Custo Unitário (R$)': parseFloat(row.dataset.custoUnitario),
+                'Preço Venda Site (R$)': parseCurrency(row.querySelector('.cell-preco-site span').textContent),
+                'Mercado Livre (R$)': parseCurrency(row.querySelector('.cell-preco-ml span').textContent),
+                'Shopee (R$)': parseCurrency(row.querySelector('.cell-preco-shopee span').textContent),
             });
         });
 
         const parametros = getParametros();
 
+        // fetch já é JavaScript nativo.
         fetch(`/api/precificacao/${precId}/salvar`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -232,18 +277,15 @@ $(document).ready(function() {
         })
         .then(response => response.json())
         .then(data => {
-            if (data.status === 'success') {
-                showToast(data.message, 'success');
-            } else {
-                showToast(data.message, 'danger');
-            }
+            showToast(data.message, data.status === 'success' ? 'success' : 'danger');
         })
-        .catch((error) => {
-            console.error('Error:', error);
+        .catch(error => {
+            console.error('Erro:', error);
             showToast('Erro de comunicação com o servidor.', 'danger');
         })
         .finally(() => {
-            btn.prop('disabled', false).html(originalText);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
         });
     }
     
@@ -256,89 +298,102 @@ $(document).ready(function() {
                 </div>
             </div>`;
         
-        if($(".toast-container").length === 0) {
-             $('body').append('<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1060;"></div>');
+        let toastContainer = document.querySelector(".toast-container");
+        if (!toastContainer) {
+             toastContainer = document.createElement('div');
+             toastContainer.className = "toast-container position-fixed top-0 end-0 p-3";
+             toastContainer.style.zIndex = "1060";
+             document.body.appendChild(toastContainer);
         }
-        const newToast = $(toastHtml);
-        $(".toast-container").append(newToast);
         
-        setTimeout(() => newToast.fadeOut(500, () => newToast.remove()), 5000);
+        // Adiciona o novo toast no container.
+        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+        const newToast = toastContainer.lastElementChild;
+
+        // Garante que o toast seja removido após um tempo
+        setTimeout(() => {
+            const toastInstance = bootstrap.Toast.getInstance(newToast);
+            if(toastInstance) {
+                toastInstance.hide();
+            } else {
+                newToast.remove();
+            }
+        }, 5000);
     }
+
+    // --- INICIALIZAÇÃO E EVENT LISTENERS ---
 
     function attachEventListeners() {
-        $(document).on("change", ".param-global", function() {
-            recalculateAllRows();
-            saveParametersToLocalStorage();
+        // Usa delegação de eventos para inputs dinâmicos
+        document.body.addEventListener('change', function(event) {
+            // Recálculo ao mudar parâmetros globais
+            if (event.target.matches('.param-global')) {
+                recalculateAllRows();
+                saveParametersToLocalStorage();
+            }
+            // Recálculo ao mudar quantidade de um item
+            if (event.target.matches('.qtd-input')) {
+                const row = event.target.closest("tr");
+                recalculateRow(row);
+                updateResumo();
+                updatePriceAlerts();
+            }
         });
-        $(document).on("change", ".qtd-input", function() {
-            const row = $(this).closest("tr");
-            recalculateRow(row);
-            updateResumo();
-            updatePriceAlerts();
-        });
-        $("#busca-produto").on("input", function() { filterTable($(this).val()); });
-        $("#btn-exportar-pdf").on("click", function() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ orientation: 'landscape' });
-            doc.autoTable({ html: '#tabela-produtos' });
-            doc.save('precificacao_xmarkup.pdf');
-        });
-        $("#btn-salvar-ajax").on("click", function(event) {
-            event.preventDefault();
-            saveChangesViaAjax();
-        });
+        
+        // Busca
+        const buscaInput = document.getElementById("busca-produto");
+        if(buscaInput) {
+            buscaInput.addEventListener("input", () => filterTable(buscaInput.value));
+        }
+
+        // Exportar para PDF
+        const btnExportarPdf = document.getElementById("btn-exportar-pdf");
+        if(btnExportarPdf) {
+            btnExportarPdf.addEventListener("click", function() {
+                // A biblioteca jsPDF precisa ser carregada na página
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({ orientation: 'landscape' });
+                doc.autoTable({ html: '#tabela-produtos' });
+                doc.save('precificacao_xmarkup.pdf');
+            });
+        }
+        
+        // Guardar alterações via AJAX
+        const btnSalvarAjax = document.getElementById("btn-salvar-ajax");
+        if(btnSalvarAjax) {
+            btnSalvarAjax.addEventListener("click", function(event) {
+                event.preventDefault();
+                saveChangesViaAjax();
+            });
+        }
     }
     
-    function attachFormValidation(formId) {
-         $(document).on("submit", formId, function(event) {
-            let isValid = true;
-            $(this).find(".required-field").each(function() {
-                const input = $(this);
-                if (!input.val() || (input.is('input[type="number"]') && parseFloat(input.val()) < 0)) {
-                    input.addClass("is-invalid");
-                    if(!input.val()){
-                         input.siblings(".invalid-feedback").text("Este campo é obrigatório.");
-                    } else {
-                         input.siblings(".invalid-feedback").text("O valor não pode ser negativo.");
-                    }
-                    isValid = false;
-                } else {
-                    input.removeClass("is-invalid");
-                }
-            });
-
-            if (!isValid) {
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-            }
-            $("#spinner-overlay").css("display", "flex");
-        });
-    }
-
     function initializeResultsPage() {
         console.log("XMarkup JS: Inicializando página de resultados.");
         loadParametersFromLocalStorage();
-        allRows = $("#tabela-produtos tbody tr").toArray();
+        // Converte NodeList para Array para usar métodos como slice() e filter()
+        allRows = Array.from(document.querySelectorAll("#tabela-produtos tbody tr"));
         filteredRows = [...allRows];
         attachEventListeners();
-        showPage(1);
+        showPage(1); // Exibe a primeira página
         updateResumo();
         updatePriceAlerts();
     }
-
-    let allRows = [];
-    let filteredRows = [];
-    let currentPage = 1;
-    let rowsPerPage = 50;
-
-    if ($("#tabela-produtos").length) {
+    
+    // --- PONTO DE ENTRADA ---
+    
+    // Verifica se estamos na página de resultados (se a tabela existe)
+    if (document.getElementById("tabela-produtos")) {
         initializeResultsPage();
     }
     
-    if ($("#form-param").length) {
-        loadParametersFromLocalStorage();
-        attachFormValidation("#form-param");
-        $("#form-param input[name^='margem'], #form-param input[name^='comissao_'], #form-param input[name^='frete_']").on("change", saveParametersToLocalStorage);
+    // Se estiver na página inicial (formulário de parâmetros)
+    const formParam = document.getElementById("form-param");
+    if (formParam) {
+        loadParametersToLocalStorage();
+        // Adiciona listener para guardar os parâmetros ao alterá-los.
+        formParam.querySelectorAll("input[name^='margem'], input[name^='comissao_'], input[name^='frete_']").forEach(input => {
+            input.addEventListener("change", saveParametersToLocalStorage);
+        });
     }
 });

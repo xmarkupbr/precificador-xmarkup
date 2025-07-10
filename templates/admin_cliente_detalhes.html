@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Detalhes do Cliente{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% include 'partials/_flash_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <span class="mdi mdi-account-circle-outline me-2"></span>Detalhes do Cliente
+        </h2>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary">
+            <span class="mdi mdi-arrow-left me-1"></span>Voltar ao Painel
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header fw-bold">
+                    Perfil do Cliente
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title mb-0">{{ cliente.nome_completo }}</h5>
+                            <p class="card-text text-muted">{{ cliente.email }}</p>
+                        </div>
+                        
+                        {% set status_color = 'secondary' %}
+                        {% if cliente.status_cliente == 'Esmeralda' %}{% set status_color = 'success' %}{% endif %}
+                        {% if cliente.status_cliente == 'Diamante' %}{% set status_color = 'primary' %}{% endif %}
+                        <span class="badge bg-{{ status_color }} fs-6">{{ cliente.status_cliente }}</span>
+                    </div>
+                    <hr>
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><span class="mdi mdi-domain me-2 text-muted"></span><strong>Empresa:</strong> {{ cliente.empresa or 'Não informado' }}</li>
+                        <li class="mb-2"><span class="mdi mdi-phone me-2 text-muted"></span><strong>Telefone:</strong> {{ cliente.telefone or 'Não informado' }}</li>
+                        <li class="mb-2"><span class="mdi mdi-briefcase-outline me-2 text-muted"></span><strong>Ramo:</strong> {{ cliente.ramo_atividade or 'Não informado' }}</li>
+                        <li class="mb-2"><span class="mdi mdi-store-outline me-2 text-muted"></span><strong>Marketplaces:</strong> {{ cliente.marketplaces.replace(',', ', ') if cliente.marketplaces else 'Não informado' }}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header fw-bold">
+                    Gestão da Conta
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="fw-bold">Uso Atual:</span>
+                        <span class="badge bg-info fs-6">{{ uso_recente }} / {{ cliente.precificacao_limit }}</span>
+                    </div>
+                    <form action="{{ url_for('update_client_limit', user_id=cliente.id) }}" method="POST" class="mb-3">
+                        <label for="novo_limite" class="form-label">Definir Novo Limite Mensal:</label>
+                        <div class="input-group">
+                            <input type="number" name="novo_limite" id="novo_limite" class="form-control" value="{{ cliente.precificacao_limit }}" min="0">
+                            <button type="submit" class="btn btn-primary">Salvar</button>
+                        </div>
+                    </form>
+                    <form action="{{ url_for('reset_client_usage', user_id=cliente.id) }}" method="POST" class="d-grid mb-3">
+                        <button type="submit" class="btn btn-outline-secondary">Resetar Uso Mensal</button>
+                    </form>
+                    
+                    <hr>
+
+                    <form action="{{ url_for('update_client_status', user_id=cliente.id) }}" method="POST">
+                        <label for="novo_status" class="form-label">Alterar Status do Cliente:</label>
+                        <div class="input-group">
+                            <select name="novo_status" id="novo_status" class="form-select">
+                                <option value="Safira" {% if cliente.status_cliente == 'Safira' %}selected{% endif %}>Safira</option>
+                                <option value="Esmeralda" {% if cliente.status_cliente == 'Esmeralda' %}selected{% endif %}>Esmeralda</option>
+                                <option value="Diamante" {% if cliente.status_cliente == 'Diamante' %}selected{% endif %}>Diamante</option>
+                            </select>
+                            <button type="submit" class="btn btn-info">Alterar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-bold">
+                    Histórico de Precificações
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th class="text-center">Nº de Produtos</th>
+                                <th class="text-center">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if not historico %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-4">Nenhuma atividade encontrada.</td>
+                            </tr>
+                            {% endif %}
+                            {% for prec in historico %}
+                            <tr>
+                                <td>{{ prec.criado_em.strftime('%d/%m/%Y às %H:%M') }}</td>
+                                <td class="text-center">{{ prec.num_produtos }}</td>
+                                <td class="text-center">
+                                    <a href="{{ url_for('admin_ver_resumo_precificacao', prec_id=prec.id) }}" class="btn btn-sm btn-outline-secondary">Ver Resumo</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

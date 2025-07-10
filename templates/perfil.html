@@ -13,16 +13,35 @@
                     </a>
                 </div>
                 <div class="card-body p-4">
-                    <div class="row">
-                        <div class="col-md-12 mb-4">
+                    <div class="d-flex justify-content-between align-items-start mb-4">
+                        <div>
                             <h3>{{ user.nome_completo }}</h3>
-                            <p class="text-muted fs-5">{{ user.empresa or 'Empresa não informada' }}</p>
+                            <p class="text-muted fs-5 mb-0">{{ user.empresa or 'Empresa não informada' }}</p>
+                        </div>
+                        <div>
+                            {% set status_color = 'secondary' %}
+                            {% if user.status_cliente == 'Esmeralda' %}{% set status_color = 'success' %}{% endif %}
+                            {% if user.status_cliente == 'Diamante' %}{% set status_color = 'primary' %}{% endif %}
+                            <span class="badge bg-{{ status_color }} fs-6 px-3 py-2">
+                                <span class="mdi mdi-seal-variant me-1"></span>{{ user.status_cliente }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h5 class="form-section-title">Uso Mensal</h5>
+                        <div class="d-flex justify-content-between">
+                            <span>Precificações realizadas</span>
+                            <span>{{ uso_recente }} de {{ user.precificacao_limit }}</span>
+                        </div>
+                        <div class="progress mt-2" style="height: 10px;">
+                            {% set usage_percent = (uso_recente / user.precificacao_limit * 100)|int %}
+                            <div class="progress-bar" role="progressbar" style="width: {{ usage_percent }}%;" aria-valuenow="{{ uso_recente }}" aria-valuemin="0" aria-valuemax="{{ user.precificacao_limit }}"></div>
                         </div>
                     </div>
                     
-                    <hr>
-
-                    <dl class="row mt-4">
+                    <h5 class="form-section-title mt-4">Detalhes de Contacto e Negócio</h5>
+                    <dl class="row mt-3">
                         <dt class="col-sm-4 col-lg-3"><span class="mdi mdi-email-outline me-2 text-muted"></span>E-mail</dt>
                         <dd class="col-sm-8 col-lg-9">{{ user.email }}</dd>
 

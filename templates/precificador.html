@@ -15,16 +15,16 @@
                     <p class="lead text-muted">Comece por preencher os parâmetros e carregar os seus ficheiros XML.</p>
                 </div>
                 {% if limite_atingido %}
-                    <div class="alert alert-warning text-center" role="alert">
-                        <h4 class="alert-heading"><span class="mdi mdi-alert-circle-outline"></span> Limite Atingido</h4>
-                        <p>Você já realizou {{ contagem_recente }} de 5 precificações permitidas nos últimos 30 dias.</p>
-                        <hr>
-                        <p class="mb-0">Para continuar a usar, por favor, <a href="{{ url_for('status') }}" class="alert-link">entre em contacto</a> ou aguarde a renovação do seu limite.</p>
-                    </div>
+                <div class="alert alert-warning text-center" role="alert">
+                    <h4 class="alert-heading"><span class="mdi mdi-alert-circle-outline"></span> Limite Atingido</h4>
+                    <p>Você já realizou {{ contagem_recente }} de {{ limite_total }} precificações permitidas.</p>
+                    <hr>
+                    <p class="mb-0">Para continuar a usar, por favor, <a href="{{ url_for('status') }}" class="alert-link">entre em contacto</a> ou aguarde a renovação do seu limite.</p>
+                </div>
                 {% else %}
-                    <div class="text-end text-muted mb-2">
-                        <small>Uso mensal: {{ contagem_recente }} de 5</small>
-                    </div>
+                <div class="text-end text-muted mb-2">
+                    <small>Uso mensal: {{ contagem_recente }} de {{ limite_total }}</small>
+                </div>
                 {% endif %}
                 <form method="post" action="{{ url_for('precificador') }}" enctype="multipart/form-data" id="form-param">
                     <fieldset {% if limite_atingido %}disabled{% endif %}>
@@ -63,52 +63,69 @@
             </div>
         </div>
     </div>
-    {% endif %}
-
-    {% if produtos %}
+    {% else %}
     <div class="precificador-layout">
+        
         <div class="main-content">
             {% if resumo %}
             <div class="card mb-3">
-                 <div class="card-header fw-bold">Resumo da Operação</div>
-                 <div class="resumo-container card-body">
+                <div class="card-header fw-bold">Resumo da Operação</div>
+                <div class="resumo-container card-body">
                     <div class="resumo-geral">
                         <div class="info-item"><span class="mdi mdi-package-variant-closed me-2"></span><strong>Total de Itens:</strong><span id="resumo-qtd-total" class="ms-auto">{{ resumo.total_qtd|int }}</span></div>
                         <div class="info-item"><span class="mdi mdi-currency-usd me-2"></span><strong>Custo Total:</strong><span id="resumo-custo-total" class="ms-auto">{{ resumo.custo_total|brl }}</span></div>
                     </div>
-                     <div class="resumo-marketplaces mt-2">
-                        <div class="marketplace-card site"><div class="marketplace-header"><h6>Meu Site</h6></div><div class="marketplace-stats"><div class="stat-item"><span class="stat-label">Total Venda:</span><span class="stat-value total" id="resumo-site-total">{{ resumo["Preço Venda Site (R$)_total"]|brl }}</span></div><div class="stat-item"><span class="stat-label">Preço Médio:</span><span class="stat-value" id="resumo-site-media">{{ resumo["Preço Venda Site (R$)_media"]|brl }}</span></div></div></div>
-                        <div class="marketplace-card ml"><div class="marketplace-header"><h6>Mercado Livre</h6></div><div class="marketplace-stats"><div class="stat-item"><span class="stat-label">Total Venda:</span><span class="stat-value total" id="resumo-ml-total">{{ resumo["Mercado Livre (R$)_total"]|brl }}</span></div><div class="stat-item"><span class="stat-label">Preço Médio:</span><span class="stat-value" id="resumo-ml-media">{{ resumo["Mercado Livre (R$)_media"]|brl }}</span></div></div></div>
-                        <div class="marketplace-card shopee"><div class="marketplace-header"><h6>Shopee</h6></div><div class="marketplace-stats"><div class="stat-item"><span class="stat-label">Total Venda:</span><span class="stat-value total" id="resumo-shopee-total">{{ resumo["Shopee (R$)_total"]|brl }}</span></div><div class="stat-item"><span class="stat-label">Preço Médio:</span><span class="stat-value" id="resumo-shopee-media">{{ resumo["Shopee (R$)_media"]|brl }}</span></div></div></div>
+                    <div class="resumo-marketplaces mt-2">
+                        <div class="marketplace-card site"><div class="marketplace-header"><h6>Meu Site</h6></div><div class="marketplace-stats"><div class="stat-item"><span class="stat-label">Total Venda:</span><span class="stat-value total">{{ resumo["Preço Venda Site (R$)_total"]|brl }}</span></div><div class="stat-item"><span class="stat-label">Preço Médio:</span><span class="stat-value">{{ resumo["Preço Venda Site (R$)_media"]|brl }}</span></div></div></div>
+                        <div class="marketplace-card ml"><div class="marketplace-header"><h6>Mercado Livre</h6></div><div class="marketplace-stats"><div class="stat-item"><span class="stat-label">Total Venda:</span><span class="stat-value total">{{ resumo["Mercado Livre (R$)_total"]|brl }}</span></div><div class="stat-item"><span class="stat-label">Preço Médio:</span><span class="stat-value">{{ resumo["Mercado Livre (R$)_media"]|brl }}</span></div></div></div>
+                        <div class="marketplace-card shopee"><div class="marketplace-header"><h6>Shopee</h6></div><div class="marketplace-stats"><div class="stat-item"><span class="stat-label">Total Venda:</span><span class="stat-value total">{{ resumo["Shopee (R$)_total"]|brl }}</span></div><div class="stat-item"><span class="stat-label">Preço Médio:</span><span class="stat-value">{{ resumo["Shopee (R$)_media"]|brl }}</span></div></div></div>
                     </div>
-                 </div>
+                </div>
             </div>
             {% endif %}
+
             <div class="d-flex flex-wrap gap-2 mb-3">
                 <a href="{{ url_for('precificador') }}" class="btn btn-outline-secondary"><span class="mdi mdi-file-plus-outline me-1"></span>Novo Processamento</a>
                 <button id="btn-salvar-ajax" data-prec-id="{{ session.get('precificacao_id') }}" type="button" class="btn btn-primary"><span class="mdi mdi-content-save me-1"></span>Guardar Alterações</button>
                 <div class="dropdown"><button class="btn btn-success dropdown-toggle" type="button" id="dropdownExportar" data-bs-toggle="dropdown" aria-expanded="false"><span class="mdi mdi-microsoft-excel me-1"></span>Exportar Para...</button><ul class="dropdown-menu" aria-labelledby="dropdownExportar"><li><a class="dropdown-item" href="{{ url_for('baixar_planilha_completa', prec_id=session.get('precificacao_id')) }}">Planilha Completa (Padrão)</a></li><li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="{{ url_for('baixar_planilha_shopee', prec_id=session.get('precificacao_id')) }}">Shopee</a></li><li><a class="dropdown-item" href="{{ url_for('baixar_planilha_ml', prec_id=session.get('precificacao_id')) }}">Mercado Livre</a></li></ul></div>
                 <button type="button" id="btn-exportar-pdf" class="btn btn-danger"><span class="mdi mdi-file-pdf-box me-1"></span> Exportar PDF</button>
             </div>
-            <form method="post" action="{{ url_for('editar') }}" id="form-editar">
-                <div class="card mb-3"><div class="card-body p-2"><div class="row align-items-center"><div class="col-md-8"><div class="busca-wrapper"><span class="mdi mdi-magnify" style="position:absolute; left:12px; top:10px; color:#aaa;"></span><input type="text" id="busca-produto" class="form-control" placeholder="Buscar por código ou nome do produto..." style="padding-left: 35px;"></div></div><div class="col-md-4 text-end"><small class="text-muted" id="table-info">Mostrando 0 de 0 produtos</small></div></div></div></div>
-                <div class="card"><div class="table-responsive"><table class="table table-hover table-striped align-middle mb-0" id="tabela-produtos"><thead class="table-light"><tr><th>NF-e</th><th>Código</th><th>Nome do produto</th><th style="width: 80px;">Qtd.</th><th>Custo Unit.</th><th>Meu Site</th><th>Merc. Livre</th><th>Shopee</th></tr></thead><tbody>
-                {% for row in produtos %}
-                <tr data-valor-total="{{ row['valor_total'] }}" data-impostos="{{ row['impostos'] }}" data-frete-total="{{ row['frete_total'] }}" data-seguro-total="{{ row['seguro_total'] }}" data-outros-total="{{ row['outros_total'] }}" data-desc-total="{{ row['desc_total'] }}" data-custo-unitario="{{ row['Custo Unitário (R$)'] }}">
-                    <td>{{ row["Série NF-e"] }}</td>
-                    <td><input name="codigo[]" value="{{ row['Código'] }}" class="form-control form-control-sm editable-cell" style="min-width:110px;"></td>
-                    <td><input name="nome[]" value="{{ row['Nome'] }}" class="form-control form-control-sm editable-cell" style="min-width:240px;"></td>
-                    <td><input name="qtd[]" value="{{ row['Qtd']|int }}" type="number" min="1" class="form-control form-control-sm editable-cell qtd-input" required></td>
-                    <td class="cell-custo-unitario">{{ row["Custo Unitário (R$)"]|brl }}</td>
-                    <td class="cell-preco-site"><span>{{ row["Preço Venda Site (R$)"]|brl }}</span></td>
-                    <td class="cell-preco-ml"><span>{{ row["Mercado Livre (R$)"]|brl }}</span></td>
-                    <td class="cell-preco-shopee"><span>{{ row["Shopee (R$)"]|brl }}</span></td>
-                </tr>
-                {% endfor %}
-                </tbody></table></div>
-                <div class="card-footer d-flex justify-content-center"><ul id="pagination" class="pagination mb-0"></ul></div></div>
+            
+            <form id="form-editar">
+                <div class="card mb-3"><div class="card-body p-2"><div class="row align-items-center"><div class="col-md-8"><div class="busca-wrapper"><span class="mdi mdi-magnify" style="position:absolute; left:12px; top:10px; color:#aaa;"></span><input type="text" id="busca-produto" class="form-control" placeholder="Buscar por código ou nome do produto..." style="padding-left: 35px;"></div></div><div class="col-md-4 text-end"><small class="text-muted" id="table-info">Mostrando {{ produtos|length }} de {{ resumo.total_qtd|int }} produtos</small></div></div></div></div>
+                <div class="card">
+                    <table class="table table-hover table-striped align-middle mb-0" id="tabela-produtos">
+                        <thead class="table-light">
+                            <tr>
+                                <th>NF-e</th>
+                                <th>Código</th>
+                                <th>Nome do produto</th>
+                                <th style="width: 80px;">Qtd.</th>
+                                <th>Custo Unit.</th>
+                                <th>Meu Site</th>
+                                <th>Merc. Livre</th>
+                                <th>Shopee</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in produtos %}
+                            <tr data-valor-total="{{ row['valor_total'] }}" data-impostos="{{ row['impostos'] }}" data-frete-total="{{ row['frete_total'] }}" data-seguro-total="{{ row['seguro_total'] }}" data-outros-total="{{ row['outros_total'] }}" data-desc-total="{{ row['desc_total'] }}" data-custo-unitario="{{ row['Custo Unitário (R$)'] }}">
+                                <td>{{ row["Série NF-e"] }}</td>
+                                <td><input name="codigo[]" value="{{ row['Código'] }}" class="form-control form-control-sm editable-cell" style="min-width:110px;"></td>
+                                <td><input name="nome[]" value="{{ row['Nome'] }}" class="form-control form-control-sm editable-cell" style="min-width:240px;"></td>
+                                <td><input name="qtd[]" value="{{ row['Qtd']|int }}" type="number" min="1" class="form-control form-control-sm editable-cell qtd-input" required></td>
+                                <td class="cell-custo-unitario">{{ row["Custo Unitário (R$)"]|brl }}</td>
+                                <td class="cell-preco-site"><span>{{ row["Preço Venda Site (R$)"]|brl }}</span></td>
+                                <td class="cell-preco-ml"><span>{{ row["Mercado Livre (R$)"]|brl }}</span></td>
+                                <td class="cell-preco-shopee"><span>{{ row["Shopee (R$)"]|brl }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </form>
         </div>
+
         <div class="sidebar-content">
             <div class="card mb-3">
                 <div class="card-header fw-bold">Parâmetros de Cálculo</div>
@@ -119,7 +136,7 @@
                     </div>
                     <hr>
                     <h6 class="mb-3">Plataformas</h6>
-                     {% for p, logo in [('site', 'web'), ('ml', 'shopping-outline'), ('shopee', 'shopping')] %}
+                    {% for p, logo in [('site', 'web'), ('ml', 'shopping-outline'), ('shopee', 'shopping')] %}
                     <div class="mb-3">
                         <label class="form-label d-flex align-items-center fw-bold"><span class="mdi mdi-{{logo}} me-2"></span>{{ p | replace('ml', 'Merc. Livre') | capitalize }}</label>
                         <div class="input-group input-group-sm mb-2">
@@ -144,6 +161,5 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.23/dist/jspdf.plugin.autotable.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 {% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Solicitar Redefinição de Senha{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow-sm auth-card">
+                <div class="card-body p-4 p-md-5">
+                    <div class="text-center mb-4">
+                        <h2 class="card-title">Redefinir Senha</h2>
+                        <p class="text-muted">Por favor, insira o e-mail da sua conta. Enviaremos um link para redefinir a sua senha.</p>
+                    </div>
+                    
+                    {% include 'partials/_flash_messages.html' %}
+
+                    <form method="POST" action="{{ url_for('request_reset_password') }}">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                        <div class="d-grid mt-4">
+                            <button type="submit" class="btn btn-primary">Enviar Link de Redefinição</button>
+                        </div>
+                    </form>
+                     <div class="mt-4 text-center">
+                        <p class="text-muted"><a href="{{ url_for('login') }}">Voltar para o Login</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

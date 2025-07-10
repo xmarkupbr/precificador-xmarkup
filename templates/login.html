@@ -30,6 +30,11 @@
                             <label for="password" class="form-label">Senha</label>
                             <input type="password" class="form-control" id="password" name="password" required>
                         </div>
+
+                        <div class="text-end mb-3">
+                            <a href="{{ url_for('request_reset_password') }}" class="form-text">Esqueci a Senha</a>
+                        </div>
+                        
                         <div class="d-grid mt-4">
                             <button type="submit" class="btn btn-primary btn-lg">Entrar</button>
                         </div>
