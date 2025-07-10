@@ -1,8 +1,8 @@
-Flask
-pandas
-openpyxl
-gunicorn
-Flask-Login
-Werkzeug
-Flask-Mail
-python-dotenv
+Flask==3.1.1
+pandas==2.3.1
+openpyxl==3.1.5
+gunicorn==23.0.0
+Flask-Login==0.6.3
+Werkzeug==3.1.3
+Flask-Mail==0.10.0
+python-dotenv==1.1.1
