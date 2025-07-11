@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .header { font-size: 24px; color: #d9534f; }
+        .product-list { margin-top: 20px; border-collapse: collapse; width: 100%; }
+        .product-list th, .product-list td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .product-list th { background-color: #f2f2f2; }
+        .button { display: inline-block; padding: 10px 20px; margin-top: 20px; background-color: #0d6efd; color: #fff; text-decoration: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="header">Alerta de Precificação!</h1>
+        <p>Olá, {{ user_nome }},</p>
+        <p>Detetamos que alguns produtos na sua recente precificação foram guardados com um preço de venda <strong>abaixo do custo unitário</strong>. Isto pode resultar em prejuízo.</p>
+        <p><strong>Produtos com Preço de Venda Abaixo do Custo:</strong></p>
+        <table class="product-list">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nome do Produto</th>
+                    <th>Custo Unitário</th>
+                    <th>Preço de Venda Problemático</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ item.codigo }}</td>
+                    <td>{{ item.nome }}</td>
+                    <td>R$ {{ "%.2f"|format(item.custo) }}</td>
+                    <td>R$ {{ "%.2f"|format(item.preco) }} ({{ item.canal }})</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p>Recomendamos que reveja estes itens o mais rápido possível para corrigir os preços.</p>
+        <a href="{{ url_for('ver_precificacao', prec_id=prec_id, _external=True) }}" class="button">Ver Precificação Agora</a>
+        <p>Atenciosamente,<br>Equipa XMarkup</p>
+    </div>
+</body>
+</html>

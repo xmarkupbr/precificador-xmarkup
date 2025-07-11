@@ -5,9 +5,8 @@ import json
 from functools import wraps
 import click
 from flask.cli import with_appcontext
-from flask import jsonify
 from io import BytesIO
-from flask import Flask, render_template, request, flash, send_file, redirect, url_for, session
+from flask import Flask, jsonify, render_template, request, flash, send_file, redirect, url_for, session
 import pandas as pd
 from database import init_app, get_db
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -72,6 +71,23 @@ def get_user_usage(db, user_id, last_reset_date=None):
         (user_id, start_date)
     ).fetchone()[0]
     return count
+
+def send_price_alert_email(user_email, user_nome, items_abaixo_custo, prec_id):
+    """Envia um e-mail de alerta quando produtos estão com preço abaixo do custo."""
+    try:
+        msg = Message(
+            subject="Alerta de Precificação - Produtos Abaixo do Custo",
+            recipients=[user_email]
+        )
+        msg.html = render_template(
+            'emails/price_alert.html', 
+            user_nome=user_nome,
+            items=items_abaixo_custo,
+            prec_id=prec_id
+        )
+        mail.send(msg)
+    except Exception as e:
+        print(f"ERRO AO ENVIAR E-MAIL DE ALERTA DE PREÇO: {e}")
 
 # --- FILTROS DE TEMPLATE ---
 @app.template_filter("brl")
@@ -221,6 +237,11 @@ def login():
         password = request.form.get('password')
         db = get_db()
         user_data = db.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+
+        if user_data and user_data['is_deleted']:
+            flash('Esta conta foi excluída e não pode ser acedida. Por favor, entre em contacto com o suporte se achar que isto é um erro.', 'danger')
+            return redirect(url_for('login'))
+
         if not user_data or not check_password_hash(user_data['password'], password):
             flash('Email ou senha inválidos. Por favor, tente novamente.', 'danger')
             return redirect(url_for('login'))
@@ -395,13 +416,30 @@ def precificador():
 @login_required
 def dashboard():
     db = get_db()
+    
+    start_date_str = request.args.get('start_date', '')
+    end_date_str = request.args.get('end_date', '')
+    
+    query_params = [current_user.id]
+    date_filter_query = ""
+    
+    if start_date_str and end_date_str:
+        end_date_dt = datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1, seconds=-1)
+        date_filter_query = "AND p.criado_em BETWEEN ? AND ?"
+        query_params.extend([start_date_str, end_date_dt])
+
+    base_query = f"""
+        SELECT p.id, p.criado_em, p.dados_json 
+        FROM precificacoes p 
+        WHERE p.user_id = ? {date_filter_query}
+        ORDER BY p.criado_em DESC
+    """
+    all_precificacoes_raw = db.execute(base_query, tuple(query_params)).fetchall()
+    
     search_nfe = request.args.get('search_nfe', '').strip()
     page = request.args.get('page', 1, type=int)
     per_page = 10 
-    all_precificacoes_raw = db.execute(
-        'SELECT id, criado_em, dados_json FROM precificacoes WHERE user_id = ? ORDER BY criado_em DESC',
-        (current_user.id,)
-    ).fetchall()
+    
     filtered_precificacoes = []
     if search_nfe:
         for row in all_precificacoes_raw:
@@ -410,13 +448,16 @@ def dashboard():
                 filtered_precificacoes.append(row)
     else:
         filtered_precificacoes = all_precificacoes_raw
+        
     total_items = len(filtered_precificacoes)
     start = (page - 1) * per_page
     end = start + per_page
     paginated_precificacoes = filtered_precificacoes[start:end]
     total_pages = (total_items + per_page - 1) // per_page
+    
     kpis = {'custo_total': 0, 'receita_total': 0, 'lucro_total': 0, 'total_itens': 0}
     receita_por_canal = {'Meu Site': 0, 'Mercado Livre': 0, 'Shopee': 0}
+    
     for row in all_precificacoes_raw:
         dados = json.loads(row['dados_json'])
         for produto in dados:
@@ -429,12 +470,15 @@ def dashboard():
             receita_por_canal['Meu Site'] += receita_site
             receita_por_canal['Mercado Livre'] += receita_ml
             receita_por_canal['Shopee'] += receita_shopee
+            
     kpis['receita_total'] = sum(receita_por_canal.values())
     kpis['lucro_total'] = kpis['receita_total'] - kpis['custo_total']
+    
     chart_data = {
         'labels': list(receita_por_canal.keys()),
         'data': list(receita_por_canal.values())
     }
+    
     precificacoes_list = []
     for row in paginated_precificacoes:
         dados = json.loads(row['dados_json'])
@@ -447,6 +491,7 @@ def dashboard():
             'num_produtos': len(dados),
             'custo_total': resumo.get('custo_total', 0)
         })
+        
     return render_template(
         'dashboard.html', 
         precificacoes=precificacoes_list, 
@@ -454,7 +499,9 @@ def dashboard():
         chart_data=chart_data,
         page=page,
         total_pages=total_pages,
-        search_nfe=search_nfe
+        search_nfe=search_nfe,
+        start_date=start_date_str,
+        end_date=end_date_str
     )
 
 @app.route('/precificacao/<int:prec_id>')
@@ -490,6 +537,66 @@ def ver_precificacao(prec_id):
         total_pages=total_pages,
         prec_id=prec_id
     )
+
+@app.route('/api/precificacao/<int:prec_id>/salvar', methods=['POST'])
+@login_required
+def salvar_precificacao_ajax(prec_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({'status': 'error', 'message': 'Nenhum dado recebido.'}), 400
+
+    produtos_atualizados = data.get('produtos')
+    parametros_atualizados = data.get('parametros')
+
+    if not produtos_atualizados or not parametros_atualizados:
+        return jsonify({'status': 'error', 'message': 'Dados da requisição estão incompletos.'}), 400
+
+    db = get_db()
+
+    prec_record = db.execute(
+        "SELECT id FROM precificacoes WHERE id = ? AND user_id = ?",
+        (prec_id, current_user.id)
+    ).fetchone()
+
+    if not prec_record:
+        return jsonify({'status': 'error', 'message': 'Precificação não encontrada ou acesso não permitido.'}), 403
+
+    items_abaixo_custo = []
+    for produto in produtos_atualizados:
+        custo_unitario = float(produto.get('Custo Unitário (R$)', 0))
+        precos = {
+            "Meu Site": float(produto.get('Preço Venda Site (R$)', 0)),
+            "Mercado Livre": float(produto.get('Mercado Livre (R$)', 0)),
+            "Shopee": float(produto.get('Shopee (R$)', 0))
+        }
+        for canal, preco_venda in precos.items():
+            if preco_venda > 0 and preco_venda < custo_unitario:
+                items_abaixo_custo.append({
+                    "codigo": produto.get("Código"),
+                    "nome": produto.get("Nome"),
+                    "custo": custo_unitario,
+                    "preco": preco_venda,
+                    "canal": canal
+                })
+    
+    if items_abaixo_custo:
+        send_price_alert_email(current_user.email, current_user.nome_completo, items_abaixo_custo, prec_id)
+
+    try:
+        dados_json_str = json.dumps(produtos_atualizados)
+        parametros_json_str = json.dumps(parametros_atualizados)
+
+        db.execute(
+            "UPDATE precificacoes SET dados_json = ?, parametros_json = ? WHERE id = ?",
+            (dados_json_str, parametros_json_str, prec_id)
+        )
+        db.commit()
+
+        return jsonify({'status': 'success', 'message': 'Alterações guardadas com sucesso!'})
+
+    except Exception as e:
+        print(f"ERRO AO SALVAR PRECIFICACAO (ID: {prec_id}): {e}")
+        return jsonify({'status': 'error', 'message': 'Ocorreu um erro interno ao tentar guardar as alterações.'}), 500
 
 @app.route('/perfil')
 @login_required
@@ -529,6 +636,55 @@ def editar_perfil():
         'SELECT * FROM users WHERE id = ?', (current_user.id,)
     ).fetchone()
     return render_template('editar_perfil.html', user=user_data)
+
+@app.route('/perfil/excluir', methods=['POST'])
+@login_required
+def excluir_conta():
+    reason = request.form.get('delete_reason')
+    
+    if not reason or len(reason) < 100:
+        flash('É necessário fornecer um motivo com pelo menos 100 caracteres para excluir a conta.', 'danger')
+        return redirect(url_for('perfil'))
+
+    db = get_db()
+    user_id = current_user.id
+    user_email = current_user.email
+    user_nome = current_user.nome_completo
+    
+    db.execute(
+        'UPDATE users SET is_deleted = 1, deleted_at = ?, delete_reason = ? WHERE id = ?',
+        (datetime.now(), reason, user_id)
+    )
+    
+    db.commit()
+
+    try:
+        msg = Message(
+            subject=f"Notificação: Conta Excluída - {user_email}",
+            recipients=[os.environ.get('MAIL_USERNAME')]
+        )
+        msg.body = f"""
+O utilizador abaixo excluiu a sua conta do XMarkup.
+
+- Nome: {user_nome}
+- Email: {user_email}
+- Data da Exclusão: {datetime.now().strftime('%d/%m/%Y %H:%M')}
+
+Motivo fornecido:
+-----------------
+{reason}
+-----------------
+
+Pode ver mais detalhes no painel de administração.
+"""
+        mail.send(msg)
+    except Exception as e:
+        print(f"ERRO AO ENVIAR E-MAIL DE NOTIFICAÇÃO DE EXCLUSÃO: {e}")
+
+    logout_user()
+    
+    flash('A sua conta foi excluída com sucesso. Lamentamos vê-lo partir!', 'success')
+    return redirect(url_for('home'))
     
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
@@ -637,17 +793,25 @@ def admin_dashboard():
 @admin_required
 def ver_cliente(user_id):
     db = get_db()
-    cliente = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-    if not cliente:
+    cliente_raw = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not cliente_raw:
         flash("Cliente não encontrado.", "danger")
         return redirect(url_for('admin_dashboard'))
         
+    cliente = dict(cliente_raw)
+    
+    if cliente.get('deleted_at'):
+        try:
+            cliente['deleted_at'] = datetime.strptime(cliente['deleted_at'], '%Y-%m-%d %H:%M:%S.%f')
+        except ValueError:
+            cliente['deleted_at'] = datetime.strptime(cliente['deleted_at'], '%Y-%m-%d %H:%M:%S')
+
     historico_raw = db.execute(
         "SELECT id, criado_em, dados_json FROM precificacoes WHERE user_id = ? ORDER BY criado_em DESC", (user_id,)
     ).fetchall()
     
     keys = cliente.keys()
-    reset_date = cliente['limit_reset_date'] if 'limit_reset_date' in keys else None
+    reset_date = cliente.get('limit_reset_date')
     uso_recente = get_user_usage(db, cliente['id'], reset_date)
     
     historico_list = []
@@ -688,6 +852,26 @@ def reset_client_usage(user_id):
     db.execute("UPDATE users SET limit_reset_date = ? WHERE id = ?", (now, user_id))
     db.commit()
     flash("O contador de uso do cliente foi resetado com sucesso!", "success")
+    return redirect(url_for('ver_cliente', user_id=user_id))
+
+@app.route('/admin/cliente/<int:user_id>/reactivate', methods=['POST'])
+@login_required
+@admin_required
+def reactivate_client(user_id):
+    db = get_db()
+    user = db.execute("SELECT nome_completo FROM users WHERE id = ?", (user_id,)).fetchone()
+
+    if not user:
+        flash("Cliente não encontrado.", "danger")
+        return redirect(url_for('admin_dashboard'))
+
+    db.execute(
+        "UPDATE users SET is_deleted = 0, deleted_at = NULL, delete_reason = NULL WHERE id = ?",
+        (user_id,)
+    )
+    db.commit()
+
+    flash(f"A conta de {user['nome_completo']} foi reativada com sucesso!", "success")
     return redirect(url_for('ver_cliente', user_id=user_id))
     
 @app.route('/admin/cliente/<int:user_id>/update_status', methods=['POST'])
@@ -873,6 +1057,7 @@ def baixar_historico_completo():
         as_attachment=True,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+    
 # --- COMANDO CLI PARA PROMOVER UTILIZADOR A ADMIN ---
 @app.cli.command("promote-user")
 @click.argument("email")

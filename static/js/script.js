@@ -397,3 +397,34 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+document.addEventListener('DOMContentLoaded', function() {
+    // ... (todo o seu código JS existente)
+
+    // --- LÓGICA PARA O MODAL DE EXCLUSÃO DE CONTA ---
+    const deleteModal = document.getElementById('deleteAccountModal');
+    if (deleteModal) {
+        const reasonTextarea = document.getElementById('delete_reason');
+        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+        const charCounter = document.getElementById('charCounter');
+        const minChars = 100;
+
+        reasonTextarea.addEventListener('input', function() {
+            const currentLength = reasonTextarea.value.length;
+            
+            // Atualiza o contador de caracteres
+            charCounter.textContent = `${currentLength} / ${minChars} caracteres`;
+
+            // Ativa ou desativa o botão de exclusão
+            if (currentLength >= minChars) {
+                confirmDeleteBtn.disabled = false;
+                charCounter.classList.remove('text-muted');
+                charCounter.classList.add('text-success');
+            } else {
+                confirmDeleteBtn.disabled = true;
+                charCounter.classList.remove('text-success');
+                charCounter.classList.add('text-muted');
+            }
+        });
+    }
+
+});

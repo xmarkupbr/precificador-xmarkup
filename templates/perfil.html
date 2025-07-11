@@ -55,8 +55,44 @@
                         <dd class="col-sm-8 col-lg-9">{{ user.marketplaces.replace(',', ', ') if user.marketplaces else 'Não informado' }}</dd>
                     </dl>
                 </div>
+                <div class="card-footer bg-light text-end">
+                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteAccountModal">
+                        <span class="mdi mdi-account-remove-outline me-1"></span>Excluir Conta
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="deleteAccountModal" tabindex="-1" aria-labelledby="deleteAccountModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteAccountModalLabel">Confirmar Exclusão da Conta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="{{ url_for('excluir_conta') }}">
+          <div class="modal-body">
+            <p><strong>Atenção:</strong> Esta ação é irreversível. Todos os seus dados, incluindo o histórico de precificações, serão permanentemente eliminados.</p>
+            <p>Para prosseguir, por favor, diga-nos o motivo pelo qual está a sair. O seu feedback é muito importante para nós.</p>
+            <div class="mb-3">
+                <label for="delete_reason" class="form-label">Motivo da exclusão (mínimo de 100 caracteres):</label>
+                <textarea class="form-control" id="delete_reason" name="delete_reason" rows="4" required minlength="100"></textarea>
+                <small id="charCounter" class="form-text text-muted">0 / 100 caracteres</small>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-danger" id="confirmDeleteBtn" disabled>Excluir minha conta permanentemente</button>
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
 {% endblock %}

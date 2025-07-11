@@ -11,6 +11,36 @@
         </a>
     </div>
 
+    {# === NOVO DESIGN PARA O FILTRO === #}
+    <div class="card mb-4">
+        <div class="card-header bg-light py-3">
+            <h6 class="mb-0 fw-bold"><span class="mdi mdi-filter-variant me-1"></span>Filtrar Análise por Período</h6>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('dashboard') }}" class="row g-3 align-items-end">
+                <div class="col-md">
+                    <label for="start_date" class="form-label">Data de Início</label>
+                    <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date or '' }}">
+                </div>
+                <div class="col-md">
+                    <label for="end_date" class="form-label">Data de Fim</label>
+                    <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date or '' }}">
+                </div>
+                <div class="col-md-auto">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <span class="mdi mdi-magnify"></span> Filtrar
+                    </button>
+                </div>
+                <div class="col-md-auto">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary w-100">
+                         <span class="mdi mdi-close"></span> Limpar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+    {# === FIM DO NOVO DESIGN === #}
+
     <div class="row mb-4">
         <div class="col-lg-3 col-md-6 mb-4">
             <div class="card kpi-card cost h-100">
@@ -152,9 +182,9 @@
                         <div class="d-flex align-items-center justify-content-center h-100">
                              <div class="text-center text-muted p-4">
                                 <span class="mdi mdi-information-outline fs-3"></span>
-                                <p class="mt-2 mb-0">Nenhuma precificação encontrada.</p>
-                                {% if search_nfe %}
-                                <p><a href="{{ url_for('dashboard') }}">Limpar busca</a></p>
+                                <p class="mt-2 mb-0">Nenhuma precificação encontrada para o período selecionado.</p>
+                                {% if search_nfe or start_date %}
+                                <p><a href="{{ url_for('dashboard') }}">Limpar filtros</a></p>
                                 {% endif %}
                             </div>
                         </div>
@@ -165,16 +195,17 @@
                 <div class="card-footer d-flex justify-content-center">
                     <nav aria-label="Paginação do Histórico">
                         <ul class="pagination mb-0">
+                            {# (O resto do ficheiro continua igual) #}
                             <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-                                <a class="page-link" href="{{ url_for('dashboard', page=page-1, search_nfe=search_nfe) }}">Anterior</a>
+                                <a class="page-link" href="{{ url_for('dashboard', page=page-1, search_nfe=search_nfe, start_date=start_date, end_date=end_date) }}">Anterior</a>
                             </li>
                             {% for p in range(1, total_pages + 1) %}
                                 <li class="page-item {% if p == page %}active{% endif %}">
-                                    <a class="page-link" href="{{ url_for('dashboard', page=p, search_nfe=search_nfe) }}">{{ p }}</a>
+                                    <a class="page-link" href="{{ url_for('dashboard', page=p, search_nfe=search_nfe, start_date=start_date, end_date=end_date) }}">{{ p }}</a>
                                 </li>
                             {% endfor %}
                             <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-                                <a class="page-link" href="{{ url_for('dashboard', page=page+1, search_nfe=search_nfe) }}">Próximo</a>
+                                <a class="page-link" href="{{ url_for('dashboard', page=page+1, search_nfe=search_nfe, start_date=start_date, end_date=end_date) }}">Próximo</a>
                             </li>
                         </ul>
                     </nav>

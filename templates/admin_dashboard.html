@@ -34,79 +34,51 @@
 
 
 <div class="card mb-4">
-        <div class="card-header fw-bold">
-            <span class="mdi mdi-account-supervisor me-2"></span>Gestão de Clientes
-        </div>
-        <div class="table-responsive">
-            <table class="table table-hover mb-0 align-middle">
-                <thead>
-                    <tr>
-                        <th>Nome Completo</th>
-                        <th>E-mail</th>
-                        <th class="text-center">Uso (30d)</th>
-                        <th class="text-center">Status</th>
-                        <th class="text-center">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for user in users %}
-                    <tr>
-                        <td>{{ user.nome_completo }}</td>
-                        <td>{{ user.email }}</td>
-                        <td class="text-center">{{ user.uso_recente }} / {{ user.precificacao_limit }}</td>
-                        <td class="text-center">
-                            {# LÓGICA PARA EXIBIR O STATUS DO CLIENTE COM COR #}
-                            {% set status_color = 'secondary' %}
-                            {% if user.status_cliente == 'Esmeralda' %}
-                                {% set status_color = 'success' %}
-                            {% elif user.status_cliente == 'Diamante' %}
-                                {% set status_color = 'primary' %}
-                            {% endif %}
-                            <span class="badge bg-{{ status_color }}">{{ user.status_cliente }}</span>
-                            
-                            {% if user.is_admin %}
-                                <span class="badge bg-dark">Admin</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">
-                            <a href="{{ url_for('ver_cliente', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">Ver Detalhes</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+    <div class="card-header fw-bold">
+        <span class="mdi mdi-account-supervisor me-2"></span>Gestão de Clientes
     </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>Nome Completo</th>
+                    <th>E-mail</th>
+                    <th class="text-center">Uso (30d)</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-center">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                {# ADICIONADO: Adiciona uma classe para destacar a linha se a conta foi excluída #}
+                <tr class="{{ 'table-secondary text-muted' if user.is_deleted else '' }}">
+                    <td>{{ user.nome_completo }}</td>
+                    <td>{{ user.email }}</td>
+                    <td class="text-center">{{ user.uso_recente }} / {{ user.precificacao_limit }}</td>
+                    <td class="text-center">
+                        {% set status_color = 'secondary' %}
+                        {% if user.status_cliente == 'Esmeralda' %}{% set status_color = 'success' %}{% endif %}
+                        {% if user.status_cliente == 'Diamante' %}{% set status_color = 'primary' %}{% endif %}
+                        <span class="badge bg-{{ status_color }}">{{ user.status_cliente }}</span>
+                        
+                        {% if user.is_admin %}
+                            <span class="badge bg-dark">Admin</span>
+                        {% endif %}
 
-    <div class="card">
-        <div class="card-header fw-bold">
-            <span class="mdi mdi-history me-2"></span>Atividade Recente de Precificação
-        </div>
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th>Utilizador</th>
-                        <th>Data</th>
-                        <th>Nº de Itens</th>
-                        <th>Ação</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for prec in precificacoes %}
-                    <tr>
-                        <td>{{ prec.user_nome }}</td>
-                        <td>{{ prec.criado_em.strftime('%d/%m/%Y %H:%M') }}</td>
-                        <td>{{ prec.num_produtos }}</td>
-                        <td>
-                            <a href="{{ url_for('admin_ver_resumo_precificacao', prec_id=prec.id) }}" class="btn btn-sm btn-outline-primary">Ver Resumo</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                        {# ADICIONADO: Badge para conta excluída #}
+                        {% if user.is_deleted %}
+                            <span class="badge bg-danger">Excluída</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        <a href="{{ url_for('ver_cliente', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">Ver Detalhes</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
+</div>
 
 </div>
 {% endblock %}

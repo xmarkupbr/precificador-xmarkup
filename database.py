@@ -47,7 +47,12 @@ def init_db_script():
             default_comissao_ml REAL DEFAULT 0.0,
             default_frete_ml REAL DEFAULT 0.0,
             default_comissao_shopee REAL DEFAULT 0.0,
-            default_frete_shopee REAL DEFAULT 0.0
+            default_frete_shopee REAL DEFAULT 0.0,
+            
+            -- NOVAS COLUNAS PARA EXCLUSÃO DE CONTA --
+            is_deleted BOOLEAN NOT NULL DEFAULT 0,
+            deleted_at TIMESTAMP,
+            delete_reason TEXT
         );
     ''')
     
