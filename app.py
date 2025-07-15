@@ -199,7 +199,8 @@ def calculate_product_prices(products_raw, margin, commissions, shipping_costs):
         item_insurance = proportion * total_insurance_nfe
         item_other = proportion * total_other_nfe
         item_discount = proportion * total_discount_nfe
-        total_cost = (item["valor_total"] + item["impostos"] + item_freight + item_insurance + item_other - item_discount)
+        # Linha alterada: removido item["impostos"]
+        total_cost = (item["valor_total"] + item_freight + item_insurance + item_other - item_discount)
         unit_cost = total_cost / item["Qtd"] if item["Qtd"] > 0 else 0
         cost_with_margin = unit_cost * (1 + margin)
         prices = {channel: (cost_with_margin + shipping_costs.get(channel, 0)) / (1 - commission) if (1 - commission) != 0 else 0
