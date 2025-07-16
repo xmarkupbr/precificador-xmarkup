@@ -32,23 +32,26 @@
                             <label class="form-label fw-semibold">Margem de Lucro (%)</label>
                             <input type="number" step="any" min="0" name="margem" class="form-control" required style="max-width:200px;" value="{{ parametros.get('margem', '') | input_num }}">
                         </div>
-                        <h5 class="mb-3 text-secondary">Comissões e Fretes por Plataforma</h5>
-                        <div class="row mb-4">
-                            {% for p in ['site', 'ml', 'shopee'] %}
-                            <div class="col-md-4 mb-3">
-                                <div class="platform-group">
-                                    <label class="form-label fw-bold">{{ p | replace('ml', 'Merc. Livre') | capitalize }}</label>
-                                    <div class="input-group mb-2">
-                                        <span class="input-group-text" style="width: 40px;">%</span>
-                                        <input type="number" step="any" min="0" name="comissao_{{p}}" class="form-control" placeholder="Comissão" required value="{{ parametros.get('comissao_' + p, '') | input_num }}">
-                                    </div>
-                                    <div class="input-group">
-                                        <span class="input-group-text" style="width: 40px;">R$</span>
-                                        <input type="number" step="any" min="0" name="frete_{{p}}" class="form-control" placeholder="Frete" required value="{{ parametros.get('frete_' + p, '') | input_num }}">
+                        
+                        <div class="comissoes-fretes-section">
+                            <h5 class="mb-3">Comissões e Fretes por Plataforma</h5>
+                            <div class="row">
+                                {% for p in ['site', 'ml', 'shopee'] %}
+                                <div class="col-md-4 mb-3">
+                                    <div class="platform-group">
+                                        <label class="form-label">{{ p | replace('ml', 'Merc. livre') | replace('site', 'Site') | replace('shopee', 'Shopee') }}</label>
+                                        <div class="input-group mb-2">
+                                            <span class="input-group-text">%</span>
+                                            <input type="number" step="any" min="0" name="comissao_{{p}}" class="form-control" placeholder="Comissão" required value="{{ parametros.get('comissao_' + p, '') | input_num }}">
+                                        </div>
+                                        <div class="input-group">
+                                            <span class="input-group-text">R$</span>
+                                            <input type="number" step="any" min="0" name="frete_{{p}}" class="form-control" placeholder="Frete" required value="{{ parametros.get('frete_' + p, '') | input_num }}">
+                                        </div>
                                     </div>
                                 </div>
+                                {% endfor %}
                             </div>
-                            {% endfor %}
                         </div>
                         <div class="mb-4">
                             <label class="form-label fw-semibold">Upload de XML(s) da NF-e</label>

@@ -2,80 +2,252 @@
 
 {% block title %}Página Inicial{% endblock %}
 
+{% block og_title %}XMarkup - Otimize sua precificação com inteligência{% endblock %}
+{% block og_description %}Automatize a leitura de XML de notas fiscais e gere preços de venda com rapidez, precisão e controle. Uma ferramenta criada para lojistas que precisam ganhar tempo e melhorar seus lucros.{% endblock %}
+
 {% block content %}
 <div class="container">
-    <div class="p-5 mb-5 bg-light rounded-3 text-center hero-section">
+    <!-- Hero Section -->
+    <section class="hero-section text-center fade-in-up">
         <div class="container-fluid py-5">
-            <h1 class="display-5 fw-bold">Precificação Inteligente para o seu E-commerce</h1>
-            <p class="fs-4 col-md-8 mx-auto">Importe as suas NF-e de compra e transforme dados complexos em preços de venda precisos para todos os seus canais. Simples, rápido e gratuito.</p>
-            <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg mt-3">
-                <span class="mdi mdi-account-plus-outline me-1"></span> Criar Conta Gratuita
-            </a>
-            <a href="{{ url_for('login') }}" class="btn btn-outline-secondary btn-lg mt-3">
-                <span class="mdi mdi-login me-1"></span> Já tenho conta
-            </a>
+            <h1 class="display-4 fw-bold mb-4 text-gradient">
+                Otimize sua precificação com inteligência
+            </h1>
+            <p class="fs-4 col-lg-8 mx-auto mb-5">
+                Automatize a leitura de XML de notas fiscais e gere preços de venda com rapidez, precisão e controle. 
+                Uma ferramenta criada para lojistas que precisam ganhar tempo e melhorar seus lucros.
+            </p>
+            
+            <div class="d-flex flex-column flex-md-row gap-3 justify-content-center align-items-center">
+                {% if not current_user.is_authenticated %}
+                <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg shadow-purple">
+                    <span class="mdi mdi-rocket-launch-outline"></span>
+                    Criar Conta e Experimentar
+                </a>
+                <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg">
+                    <span class="mdi mdi-login"></span>
+                    Já tenho conta
+                </a>
+                {% else %}
+                <a href="{{ url_for('precificador') }}" class="btn btn-primary btn-lg shadow-purple">
+                    <span class="mdi mdi-calculator-variant-outline"></span>
+                    Acessar Precificador
+                </a>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary btn-lg">
+                    <span class="mdi mdi-view-dashboard-outline"></span>
+                    Ver Dashboard
+                </a>
+                {% endif %}
+            </div>
         </div>
-    </div>
+    </section>
 
-    <div class="container text-center py-5 intro-section">
+    <!-- Introdução -->
+    <section class="py-5 text-center">
         <div class="row justify-content-center">
-            <div class="col-lg-9">
-                <h2 class="display-6 fw-bold">Descomplique na hora de precificar</h2>
-                <p class="lead text-muted mt-3">
-                    XMarkup foi desenvolvida para atender às necessidades de vendedores de e-commerce e marketplaces. A nossa ferramenta é a solução intuitiva que você precisa para precificar com velocidade e precisão, eliminando a complexidade das fórmulas e a chance de erros.
+            <div class="col-lg-10">
+                <h2 class="display-6 fw-bold mb-4">Descomplique na hora de precificar</h2>
+                <p class="lead mb-4">
+                    XMarkup foi desenvolvida para atender às necessidades de vendedores de e-commerce e marketplaces. 
+                    Nossa ferramenta é a solução intuitiva que você precisa para precificar com velocidade e precisão, 
+                    eliminando a complexidade das fórmulas e a chance de erros.
                 </p>
-                <p class="lead text-muted">
-                    Importe facilmente dados de notas fiscais (XMLs), configure seus custos e margens por plataforma, e exporte listas prontas para cadastro.
+                <p class="lead mb-4">
+                    Importe facilmente dados de notas fiscais (XMLs), configure seus custos e margens por plataforma, 
+                    e exporte listas prontas para cadastro em qualquer marketplace.
                 </p>
-                <p class="fw-bold fs-5 mt-4">Menos tempo a calcular, mais tempo a vender.</p>
+                <div class="bg-light rounded-3 p-4 d-inline-block">
+                    <p class="fw-bold fs-4 mb-0 text-primary">
+                        <span class="mdi mdi-clock-fast"></span>
+                        Menos tempo calculando, mais tempo vendendo.
+                    </p>
+                </div>
             </div>
         </div>
-    </div>
+    </section>
 
+    <!-- Como Funciona -->
+    <section class="py-5">
+        <div class="text-center mb-5">
+            <h2 class="display-6 fw-bold mb-3">Como funciona em 3 passos simples</h2>
+            <p class="lead text-muted">Transforme suas notas fiscais em preços otimizados em minutos</p>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="step-card">
+                    <div class="step-icon">
+                        <span class="mdi mdi-cloud-upload-outline"></span>
+                    </div>
+                    <h5 class="fw-bold">1. Faça o Upload do XML</h5>
+                    <p>
+                        Envie um ou mais arquivos XML da sua Nota Fiscal de compra. 
+                        Nossa plataforma extrai todos os produtos e custos automaticamente, 
+                        incluindo impostos e fretes.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="step-card">
+                    <div class="step-icon">
+                        <span class="mdi mdi-tune-variant"></span>
+                    </div>
+                    <h5 class="fw-bold">2. Defina suas Margens</h5>
+                    <p>
+                        Configure sua margem de lucro e os custos específicos de cada marketplace 
+                        (comissão, frete, taxas). O sistema calcula o preço ideal para cada canal 
+                        automaticamente.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="step-card">
+                    <div class="step-icon">
+                        <span class="mdi mdi-download-outline"></span>
+                    </div>
+                    <h5 class="fw-bold">3. Exporte e Venda</h5>
+                    <p>
+                        Baixe planilhas prontas para importação no Mercado Livre, Shopee e no futuro outros marketplaces. Seus produtos estarão prontos para venda em segundos.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
 
-    <div class="row text-center my-5">
-        <h2 class="mb-4">Como Funciona em 3 Passos Simples</h2>
-        <div class="col-md-4">
-            <div class="step-card">
-                <div class="step-icon"><span class="mdi mdi-upload"></span></div>
-                <h5>1. Faça o Upload do XML</h5>
-                <p>Envie um ou mais ficheiros XML da sua Nota Fiscal de compra. A nossa plataforma extrai todos os produtos e custos automaticamente.</p>
+    <!-- Benefícios -->
+    <section class="py-5">
+        <div class="row align-items-stretch g-4">
+            <div class="col-lg-6">
+                <div class="feature-card dark h-100">
+                    <h2 class="fw-bold mb-4">
+                        <span class="mdi mdi-target"></span>
+                        Para quem é o XMarkup?
+                    </h2>
+                    <p class="mb-4">
+                        Ideal para vendedores de e-commerce que atuam no Mercado Livre e Shopee. 
+                        Perfeito para pequenos e médios lojistas, MEIs e qualquer pessoa que precise de agilidade e precisão 
+                        para precificar produtos a partir de notas de compra.
+                    </p>
+                    <div class="d-flex align-items-center">
+                        <span class="mdi mdi-account-group text-white me-2" style="font-size: 1.5rem;"></span>
+                        <span class="fw-semibold">Milhares de lojistas confiam no XMarkup</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-6">
+                <div class="feature-card light h-100">
+                    <h2 class="fw-bold mb-4">
+                        <span class="mdi mdi-star-outline"></span>
+                        Benefícios imediatos
+                    </h2>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="d-flex align-items-start">
+                                <span class="mdi mdi-check-circle text-primary me-3 mt-1" style="font-size: 1.5rem;"></span>
+                                <div>
+                                    <strong>Experimente sem compromisso:</strong> Teste até 5 precificações para conhecer a ferramenta.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex align-items-start">
+                                <span class="mdi mdi-lightning-bolt text-primary me-3 mt-1" style="font-size: 1.5rem;"></span>
+                                <div>
+                                    <strong>Agilidade Máxima:</strong> Processe centenas de produtos em segundos.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex align-items-start">
+                                <span class="mdi mdi-bullseye-arrow text-primary me-3 mt-1" style="font-size: 1.5rem;"></span>
+                                <div>
+                                    <strong>Precisão Total:</strong> Considera impostos, fretes e descontos da NF-e.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex align-items-start">
+                                <span class="mdi mdi-cog-outline text-primary me-3 mt-1" style="font-size: 1.5rem;"></span>
+                                <div>
+                                    <strong>Flexibilidade Total:</strong> Configure preços para múltiplas plataformas.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="step-card">
-                <div class="step-icon"><span class="mdi mdi-calculator-variant"></span></div>
-                <h5>2. Defina as Suas Margens</h5>
-                <p>Informe a sua margem de lucro e os custos de cada marketplace (comissão, frete). O sistema calcula o preço de venda ideal para cada canal.</p>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="step-card">
-                <div class="step-icon"><span class="mdi mdi-file-excel"></span></div>
-                <h5>3. Exporte e Venda</h5>
-                <p>Exporte os preços calculados em planilhas prontas para importar no Mercado Livre, Shopee e outros. Vender nunca foi tão fácil!</p>
-            </div>
-        </div>
-    </div>
+    </section>
 
-    <div class="row align-items-md-stretch">
-        <div class="col-md-6 mb-4">
-            <div class="h-100 p-5 text-white bg-dark rounded-3 feature-card">
-                <h2>Para Quem é o XMarkup?</h2>
-                <p>Ideal para vendedores de e-commerce (Mercado Livre, Shopee, Amazon, etc.), pequenos e médios lojistas, e qualquer pessoa que precise de agilidade e precisão para precificar produtos a partir de notas de compra.</p>
+    <!-- Call to Action Final -->
+    <section class="py-5 text-center">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="cta-section p-5 rounded-3">
+                    <h2 class="display-6 fw-bold mb-4 text-white">Pronto para começar?</h2>
+                    <p class="lead mb-4 text-white opacity-90">
+                        Junte-se a milhares de lojistas que já descobriram como precificar de forma inteligente.
+                    </p>
+                    
+                    {% if not current_user.is_authenticated %}
+                    <div class="d-flex justify-content-center">
+                        <a href="{{ url_for('register') }}" class="btn btn-light btn-lg shadow-lg">
+                            <span class="mdi mdi-rocket-launch-outline"></span>
+                            Criar Conta Gratuitamente
+                        </a>
+                    </div>
+                    {% else %}
+                    <div class="d-flex justify-content-center">
+                        <a href="{{ url_for('precificador') }}" class="btn btn-light btn-lg shadow-lg">
+                            <span class="mdi mdi-calculator-variant-outline"></span>
+                            Começar a Precificar
+                        </a>
+                    </div>
+                    {% endif %}
+                    
+                    <p class="text-white opacity-75 mt-3 small">
+                        <span class="mdi mdi-shield-check-outline"></span>
+                        Experimente até 5 precificações • Sem cartão de crédito • Comece em 30 segundos
+                    </p>
+                </div>
             </div>
         </div>
-        <div class="col-md-6 mb-4">
-            <div class="h-100 p-5 bg-body-secondary border rounded-3 feature-card">
-                <h2>Benefícios Imediatos</h2>
-                <ul class="list-unstyled">
-                    <li class="mb-2"><span class="mdi mdi-check-circle-outline text-success me-2"></span><strong>Totalmente Gratuito:</strong> Sem custos, assinaturas ou "letras pequenas".</li>
-                    <li class="mb-2"><span class="mdi mdi-check-circle-outline text-success me-2"></span><strong>Agilidade Máxima:</strong> Extraia dados de centenas de produtos de uma só vez.</li>
-                    <li class="mb-2"><span class="mdi mdi-check-circle-outline text-success me-2"></span><strong>Precisão de Custo:</strong> Levamos em conta impostos e fretes da NF-e para o custo real.</li>
-                    <li><span class="mdi mdi-check-circle-outline text-success me-2"></span><strong>Flexibilidade Total:</strong> Calcule o preço final para diferentes plataformas simultaneamente.</li>
-                </ul>
-            </div>
-        </div>
-    </div>
+    </section>
 </div>
+
+<!-- Adicionar animação de entrada -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Adicionar animação aos cards quando entram na viewport
+    const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    };
+    
+    const observer = new IntersectionObserver(function(entries) {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.opacity = '1';
+                entry.target.style.transform = 'translateY(0)';
+            }
+        });
+    }, observerOptions);
+    
+    // Observar todos os cards
+    document.querySelectorAll('.step-card, .feature-card').forEach(card => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(30px)';
+        card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+        observer.observe(card);
+    });
+});
+</script>
 {% endblock %}
+
+{% block scripts %}
+<!-- Scripts específicos da página home podem ir aqui -->
+{% endblock %}
+
