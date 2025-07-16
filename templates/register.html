@@ -31,11 +31,15 @@
                             <div class="col-md-6 mb-3">
                                 <label for="password" class="form-label">Senha</label>
                                 <input type="password" class="form-control" id="password" name="password" required>
+                                <div id="password-rules" class="form-text">
+                                    Mínimo 8 caracteres, com letras, números e símbolos.
+                                </div>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="password_confirm" class="form-label">Confirmar Senha</label>
                                 <input type="password" class="form-control" id="password_confirm" name="password_confirm" required>
                                 <div id="password-feedback" class="invalid-feedback"></div>
+                                <div class="valid-feedback">As senhas coincidem!</div>
                             </div>
                         </div>
 
@@ -69,7 +73,7 @@
                         </div>
 
                         <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary btn-lg" id="btn-criar-conta">Criar Conta</button>
+                            <button type="submit" class="btn btn-primary btn-lg" id="btn-criar-conta" disabled>Criar Conta</button>
                         </div>
 
                         <div class="mt-4 text-center">
@@ -81,4 +85,7 @@
         </div>
     </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
 {% endblock %}

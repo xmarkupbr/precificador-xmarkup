@@ -34,7 +34,7 @@
                         <a class="nav-link {% if request.endpoint == 'precificador' %}active{% endif %}" href="{{ url_for('precificador') }}">Precificador</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'status' %}active{% endif %}" href="{{ url_for('status') }}">Status</a>
+                        <a class="nav-link {% if request.endpoint == 'sobre' %}active{% endif %}" href="{{ url_for('sobre') }}">Sobre</a>
                     </li>
                     
                     {% if current_user.is_authenticated %}

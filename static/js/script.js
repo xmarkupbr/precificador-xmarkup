@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const totaisVenda = { site: 0, ml: 0, shopee: 0 };
         const precosMedios = { site: 0, ml: 0, shopee: 0 };
         
-        const visibleRows = filteredRows.filter(row => row.style.display !== 'none');
+        const visibleRows = document.querySelectorAll("#tabela-produtos tbody tr");
 
         visibleRows.forEach(row => {
             const qtd = parseFloat(row.querySelector("input[name='qtd[]']").value) || 0;
@@ -156,6 +156,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById(`resumo-${p}-total`).textContent = formatCurrency(totaisVenda[p]);
             document.getElementById(`resumo-${p}-media`).textContent = formatCurrency(numTotalItens > 0 ? precosMedios[p] / numTotalItens : 0);
         });
+        updateTableInfo();
     }
 
     function updatePriceAlerts() {
@@ -217,10 +218,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function updateTableInfo() {
-        const total = filteredRows.length;
-        const start = total > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0;
-        const end = Math.min(start + rowsPerPage - 1, total);
-        document.getElementById("table-info").textContent = `Mostrando ${start}-${end} de ${total} produtos`;
+        const totalRows = document.querySelectorAll("#tabela-produtos tbody tr").length;
+        document.getElementById("table-info").textContent = `Mostrando ${totalRows} de ${totalRows} produtos`;
     }
 
     function filterTable(searchTerm) {
@@ -339,6 +338,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 updatePriceAlerts();
             }
         });
+        document.body.addEventListener('click', function(event) {
+            const deleteButton = event.target.closest('.btn-excluir-item');
+            if (deleteButton) {
+                const row = deleteButton.closest('tr');
+                // Adiciona uma animação de fade-out para suavidade
+                row.style.transition = 'opacity 0.3s ease-out';
+                row.style.opacity = '0';
+                setTimeout(() => {
+                    row.remove();
+                    recalculateAllRows(); // Recalcula tudo após remover o item
+                }, 300);
+            }
+        });
         
         // Busca
         const buscaInput = document.getElementById("busca-produto");
@@ -426,5 +438,52 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    const formRegistro = document.getElementById('form-registro');
+    if (formRegistro) {
+        const passwordInput = document.getElementById('password');
+        const passwordConfirmInput = document.getElementById('password_confirm');
+        const passwordFeedback = document.getElementById('password-feedback');
+        const submitButton = document.getElementById('btn-criar-conta');
 
+        const validatePasswords = () => {
+            const pass = passwordInput.value;
+            const confirmPass = passwordConfirmInput.value;
+            
+            // Requisitos da senha: mínimo 8 caracteres, 1 letra, 1 número, 1 símbolo
+            const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+
+            let isValid = true;
+
+            // 1. Validar a força da senha principal
+            if (!passwordRegex.test(pass)) {
+                passwordInput.classList.remove('is-valid');
+                passwordInput.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                passwordInput.classList.remove('is-invalid');
+                passwordInput.classList.add('is-valid');
+            }
+
+            // 2. Validar se a confirmação está preenchida e coincide
+            if (confirmPass === "") {
+                passwordConfirmInput.classList.remove('is-valid', 'is-invalid');
+                passwordFeedback.textContent = '';
+                isValid = false;
+            } else if (pass !== confirmPass) {
+                passwordConfirmInput.classList.remove('is-valid');
+                passwordConfirmInput.classList.add('is-invalid');
+                passwordFeedback.textContent = 'As senhas não coincidem.';
+                isValid = false;
+            } else {
+                passwordConfirmInput.classList.remove('is-invalid');
+                passwordConfirmInput.classList.add('is-valid');
+            }
+
+            // Ativa ou desativa o botão de submissão
+            submitButton.disabled = !isValid;
+        };
+
+        passwordInput.addEventListener('input', validatePasswords);
+        passwordConfirmInput.addEventListener('input', validatePasswords);
+    }
 });

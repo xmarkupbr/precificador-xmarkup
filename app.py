@@ -4,6 +4,7 @@ import io
 import json
 from functools import wraps
 import click
+import re
 from flask.cli import with_appcontext
 from io import BytesIO
 from flask import Flask, jsonify, render_template, request, flash, send_file, redirect, url_for, session
@@ -277,6 +278,11 @@ def register():
         if password != password_confirm:
             flash('As senhas não coincidem. Por favor, tente novamente.', 'danger')
             return redirect(url_for('register'))
+        # Regex para validar: mínimo 8 chars, uma letra, um número, um símbolo
+        password_regex = re.compile(r'^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$')
+        if not password_regex.match(password):
+            flash('A senha não atende aos requisitos de segurança: mínimo de 8 caracteres, contendo letras, números e símbolos (@$!%*?&).', 'danger')
+            return redirect(url_for('register'))        
         db = get_db()
         user_exists = db.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
         if user_exists:
@@ -713,9 +719,9 @@ def settings():
     user_settings = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
     return render_template('settings.html', user_settings=user_settings)
 
-@app.route('/status')
-def status():
-    return render_template('status.html')
+@app.route('/sobre')
+def sobre():
+    return render_template('sobre.html')
 
 @app.route('/feedback', methods=["POST"])
 def feedback():
@@ -740,7 +746,7 @@ def feedback():
     except Exception as e:
         print(f"ERRO AO ENVIAR E-MAIL DE FEEDBACK: {e}")
         flash("Ocorreu um erro ao tentar enviar a sua mensagem. Por favor, tente novamente mais tarde.", "danger")
-    return redirect(url_for('status'))
+    return redirect(url_for('sobre'))
 
 # --- ROTAS DE ADMIN ---
 @app.route('/admin/dashboard')

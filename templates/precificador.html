@@ -105,6 +105,7 @@
                                 <th>Meu Site</th>
                                 <th>Merc. Livre</th>
                                 <th>Shopee</th>
+                                <th class="text-center">Ação</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -118,6 +119,11 @@
                                 <td class="cell-preco-site"><span>{{ row["Preço Venda Site (R$)"]|brl }}</span></td>
                                 <td class="cell-preco-ml"><span>{{ row["Mercado Livre (R$)"]|brl }}</span></td>
                                 <td class="cell-preco-shopee"><span>{{ row["Shopee (R$)"]|brl }}</span></td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-excluir-item" title="Excluir item">
+                                        <span class="mdi mdi-trash-can-outline"></span>
+                                    </button>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -161,5 +167,6 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.23/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 {% endblock %}
