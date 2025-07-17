@@ -984,8 +984,43 @@ def baixar_planilha_completa(prec_id):
     if prec_data is None:
         flash("Precificação não encontrada ou acesso negado.", "danger")
         return redirect(url_for('dashboard'))
+    
     produtos = json.loads(prec_data['dados_json'])
-    df = pd.DataFrame(produtos)
+    
+    # NOVAS LINHAS ADICIONADAS/MODIFICADAS A PARTIR DAQUI
+    # 1. Definir as colunas a serem removidas
+    colunas_a_remover = [
+        'impostos', 
+        'frete_total', 
+        'seguro_total', 
+        'outros_total', 
+        'desc_total'
+    ]
+
+    # 2. Processar produtos para remover colunas e formatar valores
+    produtos_para_df = []
+    for produto in produtos:
+        # Cria um novo dicionário sem as colunas a remover
+        produto_limpo = {k: v for k, v in produto.items() if k not in colunas_a_remover}
+        
+        # 3. Formatar valores numéricos para 2 casas decimais
+        for key, value in produto_limpo.items():
+            # Verifica se o valor é numérico e não é a quantidade ('Qtd') ou identificadores
+            if isinstance(value, (int, float)) and key not in ["Qtd", "Série NF-e", "Código", "Nome"]:
+                produto_limpo[key] = round(float(value), 2)
+            # Também trata strings que podem ser convertidas para float e formata
+            elif isinstance(value, str) and value.replace('.', '', 1).isdigit() and key not in ["Série NF-e", "Código", "Nome"]:
+                try:
+                    produto_limpo[key] = round(float(value), 2)
+                except ValueError:
+                    pass # Ignora se não for um número válido
+        
+        produtos_para_df.append(produto_limpo)
+
+    # A linha original 'df = pd.DataFrame(produtos)' é substituída por esta:
+    df = pd.DataFrame(produtos_para_df) 
+    # FIM DAS NOVAS LINHAS ADICIONADAS/MODIFICADAS
+    
     output = BytesIO()
     df.to_excel(output, index=False, sheet_name='Precificação Completa')
     output.seek(0)
