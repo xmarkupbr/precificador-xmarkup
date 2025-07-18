@@ -17,11 +17,20 @@ from flask_mail import Mail, Message
 from dotenv import load_dotenv
 from itsdangerous import URLSafeTimedSerializer
 from collections import Counter
+import logging # Importar logging
 
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY")
+
+# Configurações de upload de arquivos
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB máximo
+app.config['UPLOAD_EXTENSIONS'] = ['.xml', '.xlsx', '.csv']
+
+# Configurar o logger da aplicação
+logging.basicConfig(level=logging.INFO) # Define o nível mínimo de log
+app.logger.setLevel(logging.INFO) # Garante que o logger da app use INFO ou superior
 
 # --- CONFIGURAÇÃO DO FLASK-MAIL ---
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -39,9 +48,153 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = "Por favor, faça o login para acessar esta página."
+
+# --- FUNÇÕES DE CRIAÇÃO DE TEMPLATES ---
+def create_excel_template():
+    """Cria um arquivo Excel modelo com formatação profissional"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils.dataframe import dataframe_to_rows
+    
+    # Dados de exemplo
+    data = {
+        'Código': ['001', '002', '003', '004', '005'],
+        'Nome': [
+            'Smartphone Samsung Galaxy A54',
+            'Notebook Dell Inspiron 15',
+            'Fone de Ouvido JBL Tune 510BT',
+            'Mouse Gamer Logitech G502',
+            'Teclado Mecânico Redragon K552'
+        ],
+        'Qtd': [10, 5, 25, 15, 8],
+        'Custo Unitário (R$)': [899.90, 2499.00, 149.90, 299.90, 199.90]
+    }
+    
+    df = pd.DataFrame(data)
+    
+    # Criar workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Produtos"
+    
+    # Estilos
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    
+    example_fill = PatternFill(start_color="E8F4FD", end_color="E8F4FD", fill_type="solid")
+    border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Adicionar cabeçalhos
+    headers = ['Código', 'Nome', 'Qtd', 'Custo Unitário (R$)']
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = border
+    
+    # Adicionar dados de exemplo
+    for row_idx, row_data in enumerate(dataframe_to_rows(df, index=False, header=False), 2):
+        for col_idx, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=value)
+            cell.fill = example_fill
+            cell.border = border
+            
+            # Formatação específica por coluna
+            if col_idx == 3:  # Qtd
+                cell.alignment = Alignment(horizontal="center")
+            elif col_idx == 4:  # Custo
+                cell.number_format = 'R$ #,##0.00'
+                cell.alignment = Alignment(horizontal="right")
+    
+    # Ajustar largura das colunas
+    column_widths = [15, 40, 10, 20]
+    for col, width in enumerate(column_widths, 1):
+        ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = width
+    
+    # Adicionar instruções em uma nova aba
+    ws_instructions = wb.create_sheet("Instruções")
+    
+    instructions = [
+        "INSTRUÇÕES PARA PREENCHIMENTO",
+        "",
+        "1. Use APENAS a aba 'Produtos' para inserir seus dados",
+        "",
+        "2. NÃO altere os nomes das colunas:",
+        "   • Código: Código único do produto (texto ou número)",
+        "   • Nome: Nome/descrição do produto",
+        "   • Qtd: Quantidade em estoque (número inteiro)",
+        "   • Custo Unitário (R$): Preço de custo por unidade (número decimal)",
+        "",
+        "3. Remova os dados de exemplo antes de inserir os seus",
+        "",
+        "4. Certifique-se de que:",
+        "   • Todos os campos estão preenchidos",
+        "   • Quantidade é maior que zero",
+        "   • Custo Unitário é maior que zero",
+        "   • Não há linhas vazias entre os dados",
+        "",
+        "5. Salve o arquivo e faça upload no sistema",
+        "",
+        "DICAS:",
+        "• Use códigos únicos para cada produto",
+        "• Seja descritivo nos nomes dos produtos",
+        "• Valores monetários podem usar vírgula ou ponto decimal",
+        "• O sistema aceita até 1000 produtos por planilha",
+        "",
+        "Em caso de dúvidas, entre em contato com o suporte."
+    ]
+    
+    for row, instruction in enumerate(instructions, 1):
+        cell = ws_instructions.cell(row=row, column=1, value=instruction)
+        if row == 1:  # Título
+            cell.font = Font(bold=True, size=14, color="366092")
+        elif instruction.startswith(("1.", "2.", "3.", "4.", "5.")):  # Números principais
+            cell.font = Font(bold=True, color="366092")
+        elif instruction.startswith("DICAS:"):
+            cell.font = Font(bold=True, color="D35400")
+    
+    # Ajustar largura da coluna de instruções
+    ws_instructions.column_dimensions['A'].width = 80
+    
+    return wb
+
+def create_csv_template():
+    """Cria um arquivo CSV modelo simples"""
+    data = {
+        'Código': ['001', '002', '003'],
+        'Nome': [
+            'Produto Exemplo 1',
+            'Produto Exemplo 2', 
+            'Produto Exemplo 3'
+        ],
+        'Qtd': [10, 5, 15],
+        'Custo Unitário (R$)': [25.50, 40.00, 15.75]
+    }
+    
+    df = pd.DataFrame(data)
+    return df
 login_manager.login_message_category = "info"
 
 NFE_NAMESPACE = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
+
+# --- TRATAMENTO DE ERROS ---
+@app.errorhandler(413)
+def too_large(e):
+    flash("Arquivo muito grande. O tamanho máximo permitido é 16MB.", "danger")
+    return redirect(url_for('precificador'))
+
+def allowed_file(filename):
+    if not filename or '.' not in filename:
+        return False
+    extension = '.' + filename.rsplit('.', 1)[1].lower()
+    return extension in app.config['UPLOAD_EXTENSIONS']
 
 # --- DECORATORS E HELPERS ---
 def admin_required(f):
@@ -186,32 +339,235 @@ def process_nfe_file(xml_file):
         })
     return products_data
 
+def process_spreadsheet_file(spreadsheet_file_storage, filename):
+    """
+    Processa um arquivo de planilha (Excel ou CSV) para extrair dados de produtos.
+    Assume que a planilha tem colunas como 'Código', 'Nome', 'Qtd', 'Custo Unitário (R$)'.
+    """
+    df = None
+    file_content = spreadsheet_file_storage.read() # Lê o conteúdo do arquivo
+    file_stream = BytesIO(file_content) # Cria um stream de bytes para o pandas
+
+    try:
+        if filename.lower().endswith('.xlsx'):
+            df = pd.read_excel(file_stream)
+        elif filename.lower().endswith('.csv'):
+            # Tenta ler com diferentes encodings, comum para CSVs
+            encodings_to_try = ['utf-8', 'latin1', 'cp1252', 'iso-8859-1']
+            df = None
+            last_error = None
+            
+            for encoding in encodings_to_try:
+                try:
+                    file_stream.seek(0) # Volta ao início do stream
+                    df = pd.read_csv(file_stream, encoding=encoding)
+                    app.logger.info(f"Arquivo CSV '{filename}' lido com sucesso usando encoding '{encoding}'")
+                    break
+                except UnicodeDecodeError as e:
+                    last_error = e
+                    continue
+                except Exception as e:
+                    last_error = e
+                    break
+            
+            if df is None:
+                raise ValueError(f"Não foi possível ler o arquivo CSV '{filename}' com nenhum dos encodings testados. Último erro: {last_error}")
+        else:
+            raise ValueError(f"Formato de arquivo não suportado para '{filename}'. Por favor, use .xlsx ou .csv.")
+    except Exception as e:
+        # Loga o erro completo para depuração
+        app.logger.error(f"Erro ao processar planilha '{filename}': {e}", exc_info=True)
+        raise ValueError(f"Erro ao ler o arquivo '{filename}': {e}")
+
+    products_data = []
+    required_columns = ['Código', 'Nome', 'Qtd', 'Custo Unitário (R$)']
+    
+    # Verifica se o DataFrame está vazio após a leitura
+    if df is None or df.empty:
+        raise ValueError(f"Planilha '{filename}' está vazia ou não contém dados válidos.")
+
+    # Remove espaços em branco e caracteres invisíveis dos nomes das colunas
+    import re
+    df.columns = df.columns.str.strip()  # Remove espaços normais
+    # Remove caracteres invisíveis comuns (zero-width space, non-breaking space, etc.)
+    df.columns = [re.sub(r'[\u200b\u00a0\ufeff\u2000-\u200f\u2028-\u202f]', '', str(col)) for col in df.columns]
+    
+    # Validação mais robusta de colunas
+    def normalize_column_name(name):
+        """Normaliza nome da coluna para comparação"""
+        import unicodedata
+        # Remove acentos e converte para minúsculas
+        normalized = unicodedata.normalize('NFD', str(name).lower())
+        normalized = ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
+        # Remove caracteres especiais exceto parênteses e cifrão
+        normalized = re.sub(r'[^\w\s()$]', '', normalized)
+        # Remove espaços extras
+        normalized = re.sub(r'\s+', ' ', normalized).strip()
+        return normalized
+    
+    # Mapear colunas encontradas para nomes normalizados
+    column_mapping = {}
+    normalized_found = {}
+    
+    for col in df.columns:
+        normalized = normalize_column_name(col)
+        column_mapping[normalized] = col
+        normalized_found[normalized] = col
+    
+    # Definir variações aceitas para cada coluna obrigatória
+    required_variations = {
+        'Código': ['codigo', 'cod', 'code', 'sku'],
+        'Nome': ['nome', 'produto', 'descricao', 'description', 'name'],
+        'Qtd': ['qtd', 'quantidade', 'qty', 'quantity', 'quant'],
+        'Custo Unitário (R$)': ['custo unitario r$', 'custo unitario', 'custo', 'preco custo', 'valor unitario', 'price']
+    }
+    
+    # Tentar mapear colunas obrigatórias
+    mapped_columns = {}
+    missing_columns = []
+    
+    for required_col in required_columns:
+        found = False
+        
+        # Primeiro, tentar match exato
+        if required_col in df.columns:
+            mapped_columns[required_col] = required_col
+            found = True
+        else:
+            # Tentar match normalizado
+            normalized_required = normalize_column_name(required_col)
+            if normalized_required in normalized_found:
+                mapped_columns[required_col] = normalized_found[normalized_required]
+                found = True
+            else:
+                # Tentar variações conhecidas
+                for variation in required_variations.get(required_col, []):
+                    if variation in normalized_found:
+                        mapped_columns[required_col] = normalized_found[variation]
+                        found = True
+                        break
+        
+        if not found:
+            missing_columns.append(required_col)
+    
+    if missing_columns:
+        # Gerar sugestões úteis
+        suggestions = []
+        for missing in missing_columns:
+            similar_cols = []
+            missing_normalized = normalize_column_name(missing)
+            
+            for col in df.columns:
+                col_normalized = normalize_column_name(col)
+                # Verificar se há palavras em comum
+                missing_words = set(missing_normalized.split())
+                col_words = set(col_normalized.split())
+                if missing_words & col_words:  # Interseção não vazia
+                    similar_cols.append(col)
+            
+            if similar_cols:
+                suggestions.append(f"'{missing}' → talvez seja: {', '.join(similar_cols)}")
+        
+        error_msg = f"Planilha '{filename}' não possui todas as colunas necessárias.\n"
+        error_msg += f"Faltam: {', '.join(missing_columns)}.\n"
+        error_msg += f"Colunas encontradas: {', '.join(df.columns)}.\n"
+        if suggestions:
+            error_msg += f"Sugestões: {'; '.join(suggestions)}.\n"
+        error_msg += "Verifique se os nomes das colunas estão corretos: 'Código', 'Nome', 'Qtd', 'Custo Unitário (R$)'."
+        
+        app.logger.error(f"Erro de validação de colunas: {error_msg}")
+        raise ValueError(error_msg)
+    
+    # Renomear colunas para os nomes padrão se necessário
+    if mapped_columns:
+        rename_dict = {v: k for k, v in mapped_columns.items() if v != k}
+        if rename_dict:
+            df = df.rename(columns=rename_dict)
+            app.logger.info(f"Colunas renomeadas na planilha '{filename}': {rename_dict}")
+
+    for index, row in df.iterrows():
+        try:
+            # Converte os tipos de dados para garantir que são numéricos onde esperado
+            qtd = float(row['Qtd'])
+            custo_unitario = float(row['Custo Unitário (R$)'])
+
+            # Ignorar linhas com Qtd ou Custo Unitário inválidos/zero
+            if qtd <= 0 or custo_unitario <= 0:
+                app.logger.warning(f"Linha {index+1} da planilha '{filename}' ignorada: Quantidade ou Custo Unitário inválido/zero.")
+                continue
+
+            products_data.append({
+                "Série NF-e": f"PLANILHA_{os.path.basename(filename).split('.')[0].upper()}_{index+1}", # Nome mais descritivo
+                "Código": str(row['Código']),
+                "Nome": str(row['Nome']),
+                "Qtd": qtd,
+                "valor_total": qtd * custo_unitario, 
+                "impostos": 0.0, 
+                "frete_total": 0.0, 
+                "seguro_total": 0.0,
+                "outros_total": 0.0,
+                "desc_total": 0.0,
+                "Custo Unitário (R$)": custo_unitario
+            })
+        except ValueError as ve:
+            app.logger.error(f"Erro de conversão de dados na linha {index+1} da planilha '{filename}': {ve}. Linha: {row.to_dict()}", exc_info=True)
+            # Removido flash() da função - será tratado na rota
+            continue
+        except KeyError as ke:
+            app.logger.error(f"Coluna esperada não encontrada na linha {index+1} da planilha '{filename}': {ke}. Verifique o cabeçalho da planilha.", exc_info=True)
+            # Removido flash() da função - será tratado na rota
+            continue
+
+    if not products_data:
+        raise ValueError(f"Nenhum produto válido foi extraído da planilha '{filename}'. Verifique se as colunas estão corretas e se há dados válidos.")
+
+    return products_data
+
 def calculate_product_prices(products_raw, margin, commissions, shipping_costs):
     total_items_value = sum(item["valor_total"] for item in products_raw)
     if not products_raw: return []
+    # No caso de planilhas, freight_total etc. serão 0, pois já estão "no custo unitário"
+    # ou não são aplicáveis da mesma forma que numa NF-e.
+    # Garantimos que estes valores são recuperados do primeiro item para consistência,
+    # mas eles serão 0.0 para itens de planilha.
     total_freight_nfe = products_raw[0].get('frete_total', 0.0)
     total_insurance_nfe = products_raw[0].get('seguro_total', 0.0)
     total_other_nfe = products_raw[0].get('outros_total', 0.0)
     total_discount_nfe = products_raw[0].get('desc_total', 0.0)
+
     final_products = []
     for item in products_raw:
-        proportion = item["valor_total"] / total_items_value if total_items_value > 0 else 0
-        item_freight = proportion * total_freight_nfe
-        item_insurance = proportion * total_insurance_nfe
-        item_other = proportion * total_other_nfe
-        item_discount = proportion * total_discount_nfe
-        # Linha alterada: removido item["impostos"]
-        total_cost = (item["valor_total"] + item_freight + item_insurance + item_other - item_discount)
-        unit_cost = total_cost / item["Qtd"] if item["Qtd"] > 0 else 0
+        # Se for um item de planilha, o "Custo Unitário (R$)" já é o custo final
+        # e os totais de frete/seguro/outros/desconto da NFe devem ser considerados 0 para este item específico.
+        if "PLANILHA_" in item["Série NF-e"]:
+            unit_cost = item["Custo Unitário (R$)"]
+            item_freight = 0.0
+            item_insurance = 0.0
+            item_other = 0.0
+            item_discount = 0.0
+        else: # É um item de XML
+            proportion = item["valor_total"] / total_items_value if total_items_value > 0 else 0
+            item_freight = proportion * total_freight_nfe
+            item_insurance = proportion * total_insurance_nfe
+            item_other = proportion * total_other_nfe
+            item_discount = proportion * total_discount_nfe
+            total_cost = (item["valor_total"] + item["impostos"] + item_freight + item_insurance + item_other - item_discount)
+            unit_cost = total_cost / item["Qtd"] if item["Qtd"] > 0 else 0
+            
         cost_with_margin = unit_cost * (1 + margin)
+        
         prices = {channel: (cost_with_margin + shipping_costs.get(channel, 0)) / (1 - commission) if (1 - commission) != 0 else 0
                   for channel, commission in commissions.items()}
-        item.update({
-            "Custo Unitário (R$)": unit_cost, "Preço Venda Site (R$)": prices.get("site", 0),
-            "Mercado Livre (R$)": prices.get("ml", 0), "Shopee (R$)": prices.get("shopee", 0)
-        })
+        
+        # Atualiza o custo unitário e os preços de venda no item
+        item["Custo Unitário (R$)"] = unit_cost
+        item["Preço Venda Site (R$)"] = prices.get("site", 0)
+        item["Mercado Livre (R$)"] = prices.get("ml", 0)
+        item["Shopee (R$)"] = prices.get("shopee", 0)
+        
         final_products.append(item)
     return final_products
+
 
 def generate_summary(products):
     if not products: return {}
@@ -228,8 +584,13 @@ def generate_summary(products):
     return summary
 
 # --- ROTAS PRINCIPAIS E DE AUTENTICAÇÃO ---
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def home():
+    if request.method == 'POST':
+        # Se alguém fizer POST para a raiz, redirecionar para GET
+        # Isso evita o erro 405 e mantém a funcionalidade
+        flash("Redirecionamento automático aplicado.", "info")
+        return redirect(url_for('home'))
     return render_template('home.html')
     
 @app.route('/login', methods=['GET', 'POST'])
@@ -373,16 +734,71 @@ def precificador():
 
         form_params = request.form.to_dict()
         try:
-            xml_files = request.files.getlist("xmlfiles")
-            if not xml_files or xml_files[0].filename == '':
-                flash("Por favor, selecione ao menos um arquivo XML.", "danger")
+            uploaded_files = request.files.getlist("xmlfiles") 
+            if not uploaded_files:
+                flash("Por favor, selecione ao menos um arquivo XML ou planilha.", "danger")
+                return redirect(url_for('precificador'))
+
+            # Filtrar arquivos vazios e validar extensões
+            valid_files = []
+            for f in uploaded_files:
+                if f.filename and f.filename.strip() != '':
+                    if allowed_file(f.filename):
+                        valid_files.append(f)
+                    else:
+                        flash(f"Arquivo '{f.filename}' tem extensão não permitida. Use apenas .xml, .xlsx ou .csv.", "warning")
+            
+            if not valid_files:
+                flash("Por favor, selecione ao menos um arquivo válido (.xml, .xlsx ou .csv).", "danger")
                 return redirect(url_for('precificador'))
 
             plataformas = ['site', 'ml', 'shopee']
             margem = float(form_params.get("margem", "0").replace(',', '.')) / 100
             comissoes = {p: float(form_params.get(f"comissao_{p}", "0").replace(',', '.')) / 100 for p in plataformas}
             fretes = {p: float(form_params.get(f"frete_{p}", "0").replace(',', '.')) for p in plataformas}
-            raw_products = [prod for xml_file in xml_files for prod in process_nfe_file(xml_file)]
+            
+            raw_products = []
+            processed_files = 0
+            
+            for uploaded_file in valid_files:
+                filename = uploaded_file.filename
+                filename_lower = filename.lower()
+                
+                # Reset do ponteiro do arquivo para garantir leitura do início
+                uploaded_file.seek(0) 
+
+                if filename_lower.endswith('.xml'):
+                    try:
+                        products = process_nfe_file(uploaded_file)
+                        raw_products.extend(products)
+                        processed_files += 1
+                        app.logger.info(f"XML '{filename}' processado com sucesso. {len(products)} produtos encontrados.")
+                    except ValueError as e:
+                        flash(f"Erro ao processar XML '{filename}': {e}", "danger")
+                        app.logger.error(f"Erro ao processar XML '{filename}': {e}", exc_info=True)
+                        continue  # Continua com outros arquivos em vez de retornar
+                elif filename_lower.endswith('.xlsx') or filename_lower.endswith('.csv'):
+                    try:
+                        products = process_spreadsheet_file(uploaded_file, filename)
+                        raw_products.extend(products)
+                        processed_files += 1
+                        app.logger.info(f"Planilha '{filename}' processada com sucesso. {len(products)} produtos encontrados.")
+                    except ValueError as e:
+                        flash(f"Erro ao processar planilha '{filename}': {e}", "danger")
+                        app.logger.error(f"Erro ao processar planilha '{filename}': {e}", exc_info=True)
+                        continue  # Continua com outros arquivos em vez de retornar
+                else:
+                    flash(f"Formato de arquivo não suportado: {filename}. Por favor, use .xml, .xlsx ou .csv.", "warning")
+                    continue
+
+            if processed_files == 0:
+                flash("Nenhum arquivo foi processado com sucesso. Verifique os formatos e conteúdo dos arquivos.", "danger")
+                return redirect(url_for('precificador'))
+
+            if not raw_products:
+                flash("Nenhum produto válido foi encontrado nos arquivos processados. Verifique se os arquivos não estão vazios ou corrompidos, e se as colunas estão corretas.", "danger")
+                return redirect(url_for('precificador'))
+
             final_products = calculate_product_prices(raw_products, margem, comissoes, fretes)
             
             dados_json = json.dumps(final_products)
@@ -393,12 +809,17 @@ def precificador():
                            (current_user.id, dados_json, parametros_json))
             new_id = cursor.lastrowid
             db.commit()
+            
+            flash(f"Precificação criada com sucesso! {len(final_products)} produtos processados de {processed_files} arquivo(s).", "success")
             return redirect(url_for('ver_precificacao', prec_id=new_id))
         except ValueError as e:
             flash(f"Erro nos dados enviados: {e}", "danger")
+            # Este catch serve para erros genéricos de ValueError que não foram tratados nas funções de processamento de arquivo
+            app.logger.error(f"Erro de validação na rota precificador: {e}", exc_info=True)
             return redirect(url_for('precificador'))
         except Exception as e:
             flash(f"Ocorreu um erro inesperado: {e}", "danger")
+            app.logger.error(f"Erro inesperado no precificador: {e}", exc_info=True)
             return redirect(url_for('precificador'))
             
     user_settings = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
@@ -418,6 +839,166 @@ def precificador():
         contagem_recente=contagem_recente,
         limite_total=current_user.precificacao_limit
     )
+
+# --- ROTAS DE DOWNLOAD DE MODELOS ---
+@app.route('/download/modelo-excel')
+@login_required
+def download_modelo_excel():
+    """Rota para download do arquivo modelo Excel"""
+    try:
+        template_path = os.path.join(app.root_path, 'static', 'templates', 'modelo_produtos.xlsx')
+        
+        # Verificar se o arquivo existe
+        if not os.path.exists(template_path):
+            app.logger.info(f"Arquivo modelo Excel não encontrado em {template_path}, criando dinamicamente...")
+            
+            # Criar diretório se não existir
+            os.makedirs(os.path.dirname(template_path), exist_ok=True)
+            
+            # Importar e criar o arquivo
+            try:
+                wb = create_excel_template()
+                wb.save(template_path)
+                app.logger.info(f"Arquivo modelo Excel criado com sucesso em {template_path}")
+                
+            except Exception as ce:
+                app.logger.error(f"Erro ao criar arquivo modelo Excel: {ce}")
+                flash("Erro ao criar arquivo modelo Excel.", "danger")
+                return redirect(url_for('precificador'))
+        
+        # Verificar novamente se o arquivo existe após criação
+        if not os.path.exists(template_path):
+            app.logger.error(f"Arquivo modelo Excel ainda não existe após tentativa de criação: {template_path}")
+            flash("Erro: não foi possível criar o arquivo modelo Excel.", "danger")
+            return redirect(url_for('precificador'))
+        
+        # Fazer download do arquivo
+        return send_file(
+            template_path,
+            as_attachment=True,
+            download_name='XMarkup_Modelo_Produtos.xlsx',
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        app.logger.error(f"Erro inesperado ao baixar modelo Excel: {e}", exc_info=True)
+        flash("Erro inesperado ao baixar arquivo modelo Excel. Tente novamente.", "danger")
+        return redirect(url_for('precificador'))
+
+@app.route('/download/modelo-csv')
+@login_required
+def download_modelo_csv():
+    """Rota para download do arquivo modelo CSV"""
+    try:
+        template_path = os.path.join(app.root_path, 'static', 'templates', 'modelo_produtos.csv')
+        
+        # Verificar se o arquivo existe
+        if not os.path.exists(template_path):
+            app.logger.info(f"Arquivo modelo CSV não encontrado em {template_path}, criando dinamicamente...")
+            
+            # Criar diretório se não existir
+            os.makedirs(os.path.dirname(template_path), exist_ok=True)
+            
+            # Importar e criar o arquivo
+            try:
+                df = create_csv_template()
+                df.to_csv(template_path, index=False, encoding='utf-8')
+                app.logger.info(f"Arquivo modelo CSV criado com sucesso em {template_path}")
+                
+            except Exception as ce:
+                app.logger.error(f"Erro ao criar arquivo modelo CSV: {ce}")
+                flash("Erro ao criar arquivo modelo CSV.", "danger")
+                return redirect(url_for('precificador'))
+        
+        # Verificar novamente se o arquivo existe após criação
+        if not os.path.exists(template_path):
+            app.logger.error(f"Arquivo modelo CSV ainda não existe após tentativa de criação: {template_path}")
+            flash("Erro: não foi possível criar o arquivo modelo CSV.", "danger")
+            return redirect(url_for('precificador'))
+        
+        # Fazer download do arquivo
+        return send_file(
+            template_path,
+            as_attachment=True,
+            download_name='XMarkup_Modelo_Produtos.csv',
+            mimetype='text/csv'
+        )
+        
+    except Exception as e:
+        app.logger.error(f"Erro inesperado ao baixar modelo CSV: {e}", exc_info=True)
+        flash("Erro inesperado ao baixar arquivo modelo CSV. Tente novamente.", "danger")
+        return redirect(url_for('precificador'))
+
+# --- ROTAS PÚBLICAS ALTERNATIVAS PARA DOWNLOAD DE MODELOS ---
+@app.route('/public/modelo-excel')
+def public_download_modelo_excel():
+    """Rota pública para download do arquivo modelo Excel (sem login)"""
+    try:
+        template_path = os.path.join(app.root_path, 'static', 'templates', 'modelo_produtos.xlsx')
+        
+        # Verificar se o arquivo existe
+        if not os.path.exists(template_path):
+            app.logger.info(f"Arquivo modelo Excel não encontrado em {template_path}, criando dinamicamente...")
+            
+            # Criar diretório se não existir
+            os.makedirs(os.path.dirname(template_path), exist_ok=True)
+            
+            # Importar e criar o arquivo
+            try:
+                wb = create_excel_template()
+                wb.save(template_path)
+                app.logger.info(f"Arquivo modelo Excel criado com sucesso em {template_path}")
+                
+            except Exception as ce:
+                app.logger.error(f"Erro ao criar arquivo modelo Excel: {ce}")
+                return f"Erro ao criar arquivo modelo Excel: {ce}", 500
+        
+        # Fazer download do arquivo
+        return send_file(
+            template_path,
+            as_attachment=True,
+            download_name='XMarkup_Modelo_Produtos.xlsx',
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        app.logger.error(f"Erro inesperado ao baixar modelo Excel: {e}", exc_info=True)
+        return f"Erro inesperado ao baixar arquivo modelo Excel: {e}", 500
+
+@app.route('/public/modelo-csv')
+def public_download_modelo_csv():
+    """Rota pública para download do arquivo modelo CSV (sem login)"""
+    try:
+        template_path = os.path.join(app.root_path, 'static', 'templates', 'modelo_produtos.csv')
+        
+        # Verificar se o arquivo existe
+        if not os.path.exists(template_path):
+            app.logger.info(f"Arquivo modelo CSV não encontrado em {template_path}, criando dinamicamente...")
+            
+            # Criar diretório se não existir
+            os.makedirs(os.path.dirname(template_path), exist_ok=True)
+            
+            # Importar e criar o arquivo
+            try:
+                df = create_csv_template()
+                df.to_csv(template_path, index=False, encoding='utf-8')
+                app.logger.info(f"Arquivo modelo CSV criado com sucesso em {template_path}")
+                
+            except Exception as ce:
+                app.logger.error(f"Erro ao criar arquivo modelo CSV: {ce}")
+                return f"Erro ao criar arquivo modelo CSV: {ce}", 500
+        
+        # Fazer download do arquivo
+        return send_file(
+            template_path,
+            as_attachment=True,
+            download_name='XMarkup_Modelo_Produtos.csv',
+            mimetype='text/csv'
+        )
+        
+    except Exception as e:
+        app.logger.error(f"Erro inesperado ao baixar modelo CSV: {e}", exc_info=True)
+        return f"Erro inesperado ao baixar arquivo modelo CSV: {e}", 500
 
 @app.route('/dashboard')
 @login_required
