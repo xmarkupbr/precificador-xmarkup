@@ -22,6 +22,10 @@ def init_db_script():
     
     cursor.execute("DROP TABLE IF EXISTS users")
     cursor.execute("DROP TABLE IF EXISTS precificacoes")
+    cursor.execute("DROP TABLE IF EXISTS competitor_price_history")
+    cursor.execute("DROP TABLE IF EXISTS competitor_products")
+    # ADICIONADO: Drop da nova tabela de concorrentes
+    cursor.execute("DROP TABLE IF EXISTS competitors")
     
     cursor.execute('''
         CREATE TABLE users (
@@ -64,6 +68,52 @@ def init_db_script():
             parametros_json TEXT,
             criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id)
+        );
+    ''')
+    
+    # ADICIONADO: Nova tabela para perfis de concorrentes
+    cursor.execute('''
+        CREATE TABLE competitors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            website_url TEXT,
+            ml_url TEXT,
+            shopee_url TEXT,
+            amazon_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            UNIQUE(user_id, name) -- Garante que um utilizador não tenha concorrentes com o mesmo nome
+        );
+    ''')
+
+    # MODIFICADO: Tabela competitor_products para usar competitor_profile_id
+    # Remove competitor_name (será obtido via JOIN)
+    # Adiciona competitor_profile_id que referencia a nova tabela competitors
+    cursor.execute("DROP TABLE IF EXISTS competitor_products") # Remova a tabela antiga antes de recriar
+    cursor.execute('''
+        CREATE TABLE competitor_products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            competitor_profile_id INTEGER NOT NULL, -- REFERENCIA A NOVA TABELA
+            product_name TEXT NOT NULL,
+            product_url TEXT NOT NULL UNIQUE,
+            marketplace TEXT, -- Ex: Mercado Livre, Shopee, Amazon, Site Próprio
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (competitor_profile_id) REFERENCES competitors (id) ON DELETE CASCADE
+        );
+    ''')
+
+    # Tabela competitor_price_history permanece a mesma
+    cursor.execute('''
+        CREATE TABLE competitor_price_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL,
+            price REAL NOT NULL,
+            checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES competitor_products (id) ON DELETE CASCADE
         );
     ''')
     

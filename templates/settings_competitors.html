@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações de Concorrentes{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h4 class="mb-0"><span class="mdi mdi-account-group-outline me-2"></span>Configurações de Concorrentes</h4>
+                </div>
+                <div class="card-body p-4">
+                    <p class="card-text text-muted mb-4">Gerencie os perfis dos seus concorrentes. Você pode adicionar seus sites e links de marketplace para referência.</p>
+                    
+                    {% include 'partials/_flash_messages.html' %}
+
+                    <h5 class="form-section-title mt-4">Adicionar Novo Concorrente</h5>
+                    <form method="POST" action="{{ url_for('settings_competitors') }}" class="mb-5">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="name" class="form-label">Nome do Concorrente</label>
+                                <input type="text" class="form-control" id="name" name="name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="website_url" class="form-label">Link do Site (opcional)</label>
+                                <input type="url" class="form-control" id="website_url" name="website_url" placeholder="https://www.concorrente.com">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="ml_url" class="form-label">Link Mercado Livre (opcional)</label>
+                                <input type="url" class="form-control" id="ml_url" name="ml_url" placeholder="https://loja.mercadolivre.com.br/concorrente">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="shopee_url" class="form-label">Link Shopee (opcional)</label>
+                                <input type="url" class="form-control" id="shopee_url" name="shopee_url" placeholder="https://shopee.com.br/concorrente">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="amazon_url" class="form-label">Link Amazon (opcional)</label>
+                                <input type="url" class="form-control" id="amazon_url" name="amazon_url" placeholder="https://www.amazon.com.br/concorrente">
+                            </div>
+                            <div class="col-12 mt-4 text-end">
+                                <button type="submit" class="btn btn-primary"><span class="mdi mdi-plus-circle-outline me-1"></span>Adicionar Concorrente</button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <h5 class="form-section-title mt-4">Concorrentes Cadastrados</h5>
+                    {% if competitors %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Links</th>
+                                    <th class="text-center" style="width: 150px;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for comp in competitors %}
+                                <tr>
+                                    <td>{{ comp.name }}</td>
+                                    <td>
+                                        {% if comp.website_url %}<a href="{{ comp.website_url }}" target="_blank" rel="noopener noreferrer" class="badge bg-secondary me-1">Site</a>{% endif %}
+                                        {% if comp.ml_url %}<a href="{{ comp.ml_url }}" target="_blank" rel="noopener noreferrer" class="badge bg-primary me-1">ML</a>{% endif %}
+                                        {% if comp.shopee_url %}<a href="{{ comp.shopee_url }}" target="_blank" rel="noopener noreferrer" class="badge bg-warning text-dark me-1">Shopee</a>{% endif %}
+                                        {% if comp.amazon_url %}<a href="{{ comp.amazon_url }}" target="_blank" rel="noopener noreferrer" class="badge bg-info me-1">Amazon</a>{% endif %}
+                                        {% if not comp.website_url and not comp.ml_url and not comp.shopee_url and not comp.amazon_url %}
+                                            Nenhum link
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#editCompetitorModal-{{ comp.id }}">
+                                            <span class="mdi mdi-pencil"></span>
+                                        </button>
+                                        <form action="{{ url_for('delete_competitor', competitor_id=comp.id) }}" method="POST" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Tem certeza que deseja excluir o concorrente {{ comp.name }}? Esta ação também excluirá todos os produtos monitorados vinculados a ele.')">
+                                                <span class="mdi mdi-trash-can-outline"></span>
+                                            </button>
+                                        </form>
+
+                                        <div class="modal fade" id="editCompetitorModal-{{ comp.id }}" tabindex="-1" aria-labelledby="editCompetitorModalLabel-{{ comp.id }}" aria-hidden="true">
+                                            <div class="modal-dialog modal-lg">
+                                                <div class="modal-content">
+                                                    <form method="POST" action="{{ url_for('edit_competitor', competitor_id=comp.id) }}">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title" id="editCompetitorModalLabel-{{ comp.id }}">Editar Concorrente: {{ comp.name }}</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+                                                        <div class="modal-body text-start">
+                                                            <div class="mb-3">
+                                                                <label for="edit_name-{{ comp.id }}" class="form-label">Nome do Concorrente</label>
+                                                                <input type="text" class="form-control" id="edit_name-{{ comp.id }}" name="name" value="{{ comp.name }}" required>
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label for="edit_website_url-{{ comp.id }}" class="form-label">Link do Site</label>
+                                                                <input type="url" class="form-control" id="edit_website_url-{{ comp.id }}" name="website_url" value="{{ comp.website_url or '' }}" placeholder="https://www.concorrente.com">
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label for="edit_ml_url-{{ comp.id }}" class="form-label">Link Mercado Livre</label>
+                                                                <input type="url" class="form-control" id="edit_ml_url-{{ comp.id }}" name="ml_url" value="{{ comp.ml_url or '' }}" placeholder="https://loja.mercadolivre.com.br/concorrente">
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label for="edit_shopee_url-{{ comp.id }}" class="form-label">Link Shopee</label>
+                                                                <input type="url" class="form-control" id="edit_shopee_url-{{ comp.id }}" name="shopee_url" value="{{ comp.shopee_url or '' }}" placeholder="https://shopee.com.br/concorrente">
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label for="edit_amazon_url-{{ comp.id }}" class="form-label">Link Amazon</label>
+                                                                <input type="url" class="form-control" id="edit_amazon_url-{{ comp.id }}" name="amazon_url" value="{{ comp.amazon_url or '' }}" placeholder="https://www.amazon.com.br/concorrente">
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                            <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info text-center" role="alert">
+                        Nenhum concorrente cadastrado ainda. Comece a adicionar acima!
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

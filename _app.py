@@ -18,8 +18,6 @@ from dotenv import load_dotenv
 from itsdangerous import URLSafeTimedSerializer
 from collections import Counter
 import logging
-import requests # ADICIONADO: para scraping, mesmo que não seja usado agora
-from bs4 import BeautifulSoup # ADICIONADO: para scraping, mesmo que não seja usado agora
 
 load_dotenv()
 
@@ -190,19 +188,10 @@ def process_nfe_file(xml_file):
     nfe_number = root.findtext(".//nfe:ide/nfe:nNF", default="", namespaces=NFE_NAMESPACE).strip()
     nfe_series = root.findtext(".//nfe:ide/nfe:serie", default="", namespaces=NFE_NAMESPACE).strip()
     nf_id = f"{nfe_number}/{nfe_series}" if nfe_number and nfe_series else ""
-    
-    # NOVAS LINHAS: Extrair valor total da NF e somar valor dos produtos da NF
-    total_nfe_value_from_xml = float(root.findtext(".//nfe:total/nfe:ICMSTot/nfe:vNF", default="0.0", namespaces=NFE_NAMESPACE))
-    sum_vProd_from_xml_items = 0.0 # Inicializa a soma dos vProd de todos os itens desta NFe
-
     for det in root.findall(".//nfe:det", NFE_NAMESPACE):
         prod = det.find("nfe:prod", NFE_NAMESPACE)
         imposto = det.find("nfe:imposto", NFE_NAMESPACE)
         if prod is None or imposto is None: continue
-        
-        item_vprod = float(prod.findtext("nfe:vProd", default="0.0", namespaces=NFE_NAMESPACE))
-        sum_vProd_from_xml_items += item_vprod # Soma o vProd de cada item
-        
         taxes = sum(float(n.text) for n in [
             imposto.find(".//nfe:ICMS//nfe:vICMS", NFE_NAMESPACE),
             imposto.find(".//nfe:PIS//nfe:vPIS", NFE_NAMESPACE),
@@ -212,12 +201,11 @@ def process_nfe_file(xml_file):
             "Série NF-e": nf_id, "Código": prod.findtext("nfe:cProd", default="N/A", namespaces=NFE_NAMESPACE),
             "Nome": prod.findtext("nfe:xProd", default="N/A", namespaces=NFE_NAMESPACE),
             "Qtd": float(prod.findtext("nfe:qCom", default="0.0", namespaces=NFE_NAMESPACE)),
-            "valor_total": item_vprod, # Usar o item_vprod que já extraímos
+            "valor_total": float(prod.findtext("nfe:vProd", default="0.0", namespaces=NFE_NAMESPACE)),
             "impostos": taxes, "frete_total": freight_total, "seguro_total": insurance_total,
             "outros_total": other_expenses_total, "desc_total": discount_total,
         })
-    # RETORNO MODIFICADO:
-    return products_data, total_nfe_value_from_xml, sum_vProd_from_xml_items
+    return products_data
 
 def process_spreadsheet_file(spreadsheet_file_storage, filename):
     """
@@ -417,24 +405,9 @@ def calculate_product_prices(products_raw, margin, commissions, shipping_costs):
 
     final_products = []
     for item in products_raw:
-        # Lógica para determinar o imposto a ser considerado no custo
-        impostos_to_use = item["impostos"]
-        is_spreadsheet_source = "PLANILHA_" in item["Série NF-e"]
-        
-        # Somente aplica a regra se for um XML e tiver os dados de comparação
-        if not is_spreadsheet_source and 'total_nfe_value_from_xml' in item and 'sum_vProd_from_xml_items' in item:
-            nfe_total_value = item['total_nfe_value_from_xml']
-            sum_vProd_nfe = item['sum_vProd_from_xml_items']
-            
-            # Usar uma pequena tolerância para comparação de floats
-            # Se o valor total da NFe for aproximadamente igual à soma dos vProd dos itens da NFe,
-            # então consideramos que os impostos já estão 'por dentro' e não os somamos novamente.
-            if abs(nfe_total_value - sum_vProd_nfe) < 0.01: # Tolerância de R$ 0.01
-                impostos_to_use = 0.0 # Impostos não serão adicionados
-        
         # Se for um item de planilha, o "Custo Unitário (R$)" já é o custo final
         # e os totais de frete/seguro/outros/desconto da NFe devem ser considerados 0 para este item específico.
-        if is_spreadsheet_source:
+        if "PLANILHA_" in item["Série NF-e"]:
             unit_cost = item["Custo Unitário (R$)"]
             item_freight = 0.0
             item_insurance = 0.0
@@ -446,9 +419,7 @@ def calculate_product_prices(products_raw, margin, commissions, shipping_costs):
             item_insurance = proportion * total_insurance_nfe
             item_other = proportion * total_other_nfe
             item_discount = proportion * total_discount_nfe
-            
-            # ATENÇÃO: Usar impostos_to_use aqui
-            total_cost = (item["valor_total"] + impostos_to_use + item_freight + item_insurance + item_other - item_discount)
+            total_cost = (item["valor_total"] + item["impostos"] + item_freight + item_insurance + item_other - item_discount)
             unit_cost = total_cost / item["Qtd"] if item["Qtd"] > 0 else 0
             
         cost_with_margin = unit_cost * (1 + margin)
@@ -666,12 +637,7 @@ def precificador():
 
                 if filename_lower.endswith('.xml'):
                     try:
-                        # RETORNO MODIFICADO: Recebe 3 valores da função process_nfe_file
-                        products, total_nfe_value, sum_vProd_from_xml_items = process_nfe_file(uploaded_file)
-                        # Adiciona os valores da NFe a cada produto para que a lógica de cálculo possa acessá-los
-                        for p in products:
-                            p['total_nfe_value_from_xml'] = total_nfe_value
-                            p['sum_vProd_from_xml_items'] = sum_vProd_from_xml_items
+                        products = process_nfe_file(uploaded_file)
                         raw_products.extend(products)
                         processed_files += 1
                         app.logger.info(f"XML '{filename}' processado com sucesso. {len(products)} produtos encontrados.")
@@ -682,10 +648,6 @@ def precificador():
                 elif filename_lower.endswith('.xlsx') or filename_lower.endswith('.csv'):
                     try:
                         products = process_spreadsheet_file(uploaded_file, filename)
-                        # Para planilhas, define valores padrão ou irrelevantes para as novas chaves
-                        for p in products:
-                            p['total_nfe_value_from_xml'] = 0.0 
-                            p['sum_vProd_from_xml_items'] = 0.0 
                         raw_products.extend(products)
                         processed_files += 1
                         app.logger.info(f"Planilha '{filename}' processada com sucesso. {len(products)} produtos encontrados.")
@@ -745,103 +707,7 @@ def precificador():
         contagem_recente=contagem_recente,
         limite_total=current_user.precificacao_limit
     )
-@app.route('/api/precificacao/<int:prec_id>/add_derived_product', methods=['POST'])
-@login_required
-def add_derived_product(prec_id):
-    data = request.get_json()
-    if not data:
-        return jsonify({'status': 'error', 'message': 'Nenhum dado recebido.'}), 400
 
-    original_nfe_serie = data.get('original_nfe_serie')
-    original_product_code = data.get('original_product_code')
-    novo_codigo_derivado = data.get('novo_codigo_derivado')
-    novo_nome_derivado = data.get('novo_nome_derivado')
-    nova_qtd_derivado = data.get('nova_qtd_derivado')
-
-    if not all([original_nfe_serie, original_product_code, novo_codigo_derivado, novo_nome_derivado, nova_qtd_derivado]):
-        return jsonify({'status': 'error', 'message': 'Dados incompletos para criar produto derivado.'}), 400
-
-    db = get_db()
-    # Verifica se a precificação pertence ao usuário logado ou se é admin
-    prec_record = db.execute(
-        "SELECT dados_json, parametros_json FROM precificacoes WHERE id = ? AND user_id = ?",
-        (prec_id, current_user.id)
-    ).fetchone()
-
-    if not prec_record:
-        # Se não for do usuário, verifica se o usuário é admin
-        if getattr(current_user, 'is_admin', False):
-            prec_record = db.execute(
-                "SELECT dados_json, parametros_json FROM precificacoes WHERE id = ?",
-                (prec_id,)
-            ).fetchone()
-        
-        if not prec_record:
-            return jsonify({'status': 'error', 'message': 'Precificação não encontrada ou acesso não permitido.'}), 403
-
-    produtos_json = json.loads(prec_record['dados_json'])
-    parametros_json = json.loads(prec_record['parametros_json']) if prec_record['parametros_json'] else {}
-
-    original_product = None
-    original_product_index = -1
-    for i, p in enumerate(produtos_json):
-        if p.get("Série NF-e") == original_nfe_serie and p.get("Código") == original_product_code:
-            original_product = p
-            original_product_index = i
-            break
-
-    if not original_product:
-        return jsonify({'status': 'error', 'message': 'Produto original não encontrado.'}), 404
-
-    # Validação da quantidade
-    if nova_qtd_derivado <= 0 or nova_qtd_derivado > original_product['Qtd']:
-        return jsonify({'status': 'error', 'message': 'Quantidade derivada inválida ou maior que a quantidade disponível do produto original.'}), 400
-    
-    # Lógica de criação do produto derivado
-    # Copia a maioria dos dados do produto original
-    novo_produto = original_product.copy()
-    novo_produto['Código'] = novo_codigo_derivado
-    novo_produto['Nome'] = novo_nome_derivado
-    novo_produto['Qtd'] = nova_qtd_derivado
-    
-    # Recalcula valor_total e Custo Unitário do derivado com base na nova Qtd
-    # Reutiliza o Custo Unitário original (já calculado, que inclui impostos/fretes, etc.)
-    # Se o custo unitário original já é "final", não é necessário refazer toda a proporção complexa aqui.
-    # Apenas recalcula o valor_total para o derivado.
-    original_unit_cost = original_product['Custo Unitário (R$)']
-    novo_produto['valor_total'] = original_unit_cost * nova_qtd_derivado 
-    novo_produto['Custo Unitário (R$)'] = original_unit_cost # O custo unitário é o mesmo do original
-    novo_produto['Série NF-e'] = f"DERIVADO_{original_nfe_serie}" # Marca como derivado
-
-    # Atualiza a quantidade do produto original
-    original_product['Qtd'] -= nova_qtd_derivado
-    original_product['valor_total'] = original_product['Custo Unitário (R$)'] * original_product['Qtd']
-
-    # Adiciona o novo produto derivado à lista
-    produtos_json.append(novo_produto)
-
-    # Re-executa o cálculo de preços para todos os produtos (original e derivado)
-    # Isso garante que as colunas de "Preço Venda Site", "Mercado Livre", "Shopee"
-    # sejam calculadas corretamente para o novo produto e revalidadas para o original.
-    recalculated_products = calculate_product_prices(produtos_json, 
-                                                    float(parametros_json.get("margem", "0").replace(',', '.')) / 100, 
-                                                    {p: float(parametros_json.get(f"comissao_{p}", "0").replace(',', '.')) / 100 for p in ['site', 'ml', 'shopee']}, 
-                                                    {p: float(parametros_json.get(f"frete_{p}", "0").replace(',', '.')) for p in ['site', 'ml', 'shopee']})
-
-
-    try:
-        # Salva os dados atualizados no banco de dados
-        db.execute(
-            "UPDATE precificacoes SET dados_json = ? WHERE id = ?",
-            (json.dumps(recalculated_products), prec_id)
-        )
-        db.commit()
-        return jsonify({'status': 'success', 'message': 'Produto derivado criado e precificação atualizada com sucesso!'})
-
-    except Exception as e:
-        app.logger.error(f"Erro ao salvar produto derivado na precificação {prec_id}: {e}", exc_info=True)
-        return jsonify({'status': 'error', 'message': f'Erro interno ao salvar as alterações: {e}'}), 500
-    
 # --- ROTAS DE DOWNLOAD DE MODELOS ---
 @app.route('/download/modelo-excel')
 @login_required
@@ -859,11 +725,7 @@ def download_modelo_excel():
             
             # Importar e criar o arquivo
             try:
-                # create_excel_template() precisa estar definida, assumindo que está
-                from openpyxl import Workbook
-                from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-                from openpyxl.utils.dataframe import dataframe_to_rows
-                wb = create_excel_template() # Chamar a função original se for definida em outro lugar
+                wb = create_excel_template()
                 wb.save(template_path)
                 app.logger.info(f"Arquivo modelo Excel criado com sucesso em {template_path}")
                 
@@ -907,8 +769,7 @@ def download_modelo_csv():
             
             # Importar e criar o arquivo
             try:
-                # create_csv_template() precisa estar definida, assumindo que está
-                df = create_csv_template() # Chamar a função original se for definida em outro lugar
+                df = create_csv_template()
                 df.to_csv(template_path, index=False, encoding='utf-8')
                 app.logger.info(f"Arquivo modelo CSV criado com sucesso em {template_path}")
                 
@@ -952,11 +813,7 @@ def public_download_modelo_excel():
             
             # Importar e criar o arquivo
             try:
-                # create_excel_template() precisa estar definida, assumindo que está
-                from openpyxl import Workbook
-                from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-                from openpyxl.utils.dataframe import dataframe_to_rows
-                wb = create_excel_template() # Chamar a função original se for definida em outro lugar
+                wb = create_excel_template()
                 wb.save(template_path)
                 app.logger.info(f"Arquivo modelo Excel criado com sucesso em {template_path}")
                 
@@ -991,8 +848,7 @@ def public_download_modelo_csv():
             
             # Importar e criar o arquivo
             try:
-                # create_csv_template() precisa estar definida, assumindo que está
-                df = create_csv_template() # Chamar a função original se for definida em outro lugar
+                df = create_csv_template()
                 df.to_csv(template_path, index=False, encoding='utf-8')
                 app.logger.info(f"Arquivo modelo CSV criado com sucesso em {template_path}")
                 
@@ -1205,9 +1061,7 @@ def perfil():
     user_data = db.execute(
         'SELECT * FROM users WHERE id = ?', (current_user.id,)
     ).fetchone()
-    # Correção: O user_data['limit_reset_date'] pode ser None ou uma string.
-    # A função get_user_usage já lida com o tipo.
-    uso_recente = get_user_usage(db, current_user.id, user_data['limit_reset_date'])
+    uso_recente = get_user_usage(db, current_user.id, current_user.limit_reset_date)
     return render_template(
         'perfil.html', 
         user=user_data, 
@@ -1314,178 +1168,34 @@ def settings():
     user_settings = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
     return render_template('settings.html', user_settings=user_settings)
 
-# --- ROTAS DE GESTÃO DE CONCORRENTES (Fase 1: Configurações) ---
-@app.route('/settings/competitors', methods=['GET', 'POST'])
-@login_required
-def settings_competitors():
-    db = get_db()
-    if request.method == 'POST':
-        competitor_name = request.form.get('name').strip()
-        website_url = request.form.get('website_url').strip()
-        ml_url = request.form.get('ml_url').strip()
-        shopee_url = request.form.get('shopee_url').strip()
-        amazon_url = request.form.get('amazon_url').strip()
-        
-        if not competitor_name:
-            flash('O nome do concorrente é obrigatório.', 'danger')
-        else:
-            try:
-                cursor = db.cursor()
-                # Verifica se o concorrente já existe para este utilizador
-                existing_competitor = cursor.execute(
-                    'SELECT id FROM competitors WHERE user_id = ? AND name = ?',
-                    (current_user.id, competitor_name)
-                ).fetchone()
-
-                if existing_competitor:
-                    flash(f"Um concorrente com o nome '{competitor_name}' já existe.", "warning")
-                else:
-                    cursor.execute(
-                        '''INSERT INTO competitors (user_id, name, website_url, ml_url, shopee_url, amazon_url)
-                           VALUES (?, ?, ?, ?, ?, ?)''',
-                        (current_user.id, competitor_name, website_url if website_url else None,
-                         ml_url if ml_url else None, shopee_url if shopee_url else None,
-                         amazon_url if amazon_url else None)
-                    )
-                    db.commit()
-                    flash(f"Concorrente '{competitor_name}' adicionado com sucesso!", "success")
-            except Exception as e:
-                flash(f"Erro ao adicionar concorrente: {e}", "danger")
-                db.rollback()
-        return redirect(url_for('settings_competitors'))
-
-    competitors = db.execute(
-        'SELECT * FROM competitors WHERE user_id = ? ORDER BY name',
-        (current_user.id,)
-    ).fetchall()
-    
-    return render_template('settings_competitors.html', competitors=competitors)
-
-@app.route('/settings/competitors/edit/<int:competitor_id>', methods=['POST'])
-@login_required
-def edit_competitor(competitor_id):
-    db = get_db()
-    competitor = db.execute(
-        'SELECT * FROM competitors WHERE id = ? AND user_id = ?',
-        (competitor_id, current_user.id)
-    ).fetchone()
-
-    if not competitor:
-        print(f"DEBUG: Concorrente {competitor_id} não encontrado ou não autorizado para o utilizador {current_user.id}")
-        flash('Concorrente não encontrado ou acesso não permitido.', 'danger')
-        return redirect(url_for('settings_competitors'))
-    
-    new_name = request.form.get('name').strip()
-    new_website_url = request.form.get('website_url').strip()
-    new_ml_url = request.form.get('ml_url').strip()
-    new_shopee_url = request.form.get('shopee_url').strip()
-    new_amazon_url = request.form.get('amazon_url').strip()
-
-    print(f"DEBUG: Tentando editar concorrente {competitor_id}")
-    print(f"DEBUG: Novos dados: Nome={new_name}, Site={new_website_url}, ML={new_ml_url}, Shopee={new_shopee_url}, Amazon={new_amazon_url}")
-
-    if not new_name:
-        print("DEBUG: Nome do concorrente vazio.")
-        flash('O nome do concorrente não pode ser vazio.', 'danger')
-    else:
-        try:
-            cursor = db.cursor()
-            # Verifica se o novo nome já existe para outro concorrente do mesmo utilizador
-            existing_with_new_name = cursor.execute(
-                'SELECT id FROM competitors WHERE user_id = ? AND name = ? AND id != ?',
-                (current_user.id, new_name, competitor_id)
-            ).fetchone()
-            
-            if existing_with_new_name:
-                print(f"DEBUG: Já existe concorrente com o nome '{new_name}'.")
-                flash(f"Já existe um concorrente com o nome '{new_name}'.", "warning")
-            else:
-                cursor.execute(
-                    '''UPDATE competitors SET name = ?, website_url = ?, ml_url = ?, shopee_url = ?, amazon_url = ?
-                       WHERE id = ? AND user_id = ?''',
-                    (new_name, new_website_url if new_website_url else None,
-                     new_ml_url if new_ml_url else None, new_shopee_url if new_shopee_url else None,
-                     new_amazon_url if new_amazon_url else None,
-                     competitor_id, current_user.id)
-                )
-                db.commit()
-                print(f"DEBUG: Concorrente {new_name} atualizado com sucesso no DB.")
-                flash(f"Concorrente '{new_name}' atualizado com sucesso!", "success")
-        except Exception as e:
-            print(f"DEBUG: Erro na atualização do DB: {e}")
-            flash(f"Erro ao atualizar concorrente: {e}", "danger")
-            db.rollback()
-    
-    # Adicione este print para ver se o redirecionamento é alcançado
-    print("DEBUG: Fim da rota de edição, redirecionando...")
-    return redirect(url_for('settings_competitors'))
-
-
-@app.route('/settings/competitors/delete/<int:competitor_id>', methods=['POST'])
-@login_required
-def delete_competitor(competitor_id):
-    db = get_db()
-    try:
-        # Garante que o utilizador só pode apagar os seus próprios concorrentes
-        # ON DELETE CASCADE na tabela competitor_products (se adicionado) cuidaria dos produtos
-        # Mas vamos fazer explicitamente para garantir e dar feedback
-        cursor = db.cursor()
-        
-        # Pega o nome do concorrente para a flash message
-        competitor_name_row = cursor.execute(
-            'SELECT name FROM competitors WHERE id = ? AND user_id = ?',
-            (competitor_id, current_user.id)
-        ).fetchone()
-
-        if not competitor_name_row:
-            flash('Concorrente não encontrado ou acesso não permitido.', 'danger')
-            return redirect(url_for('settings_competitors'))
-        
-        competitor_name = competitor_name_row['name']
-
-        # Opcional: deletar produtos vinculados manualmente se ON DELETE CASCADE não for configurado ou se quiser contar
-        # num_products_deleted = cursor.execute('DELETE FROM competitor_products WHERE competitor_profile_id = ?', (competitor_id,)).rowcount
-        
-        cursor.execute('DELETE FROM competitors WHERE id = ? AND user_id = ?', (competitor_id, current_user.id))
-        db.commit()
-        flash(f"Concorrente '{competitor_name}' e seus produtos associados foram excluídos com sucesso!", "success")
-    except Exception as e:
-        flash(f"Erro ao excluir concorrente: {e}", "danger")
-        db.rollback()
-    return redirect(url_for('settings_competitors'))
-
-
 @app.route('/sobre')
 def sobre():
     return render_template('sobre.html')
 
-@app.route('/feedback', methods=["GET", "POST"])
+@app.route('/feedback', methods=["POST"])
 def feedback():
-    if request.method == "POST":
-        email = request.form.get('email')
-        message = request.form.get('feedback_message')
-        msg = Message(
-            subject=f"Novo Feedback de {email or 'Anônimo'}",
-            recipients=[os.environ.get('MAIL_USERNAME')]
-        )
-        msg.body = f"""
-        Um novo feedback foi enviado através do XMarkup.
-
-        De: {email or 'Não informado'}
-        Mensagem:
-        -----------------
-        {message}
-        -----------------
-        """
-        try:
-            mail.send(msg)
-            flash("Obrigado pelo seu feedback! A sua mensagem foi enviada.", "success")
-        except Exception as e:
-            print(f"ERRO AO ENVIAR E-MAIL DE FEEDBACK: {e}")
-            flash("Ocorreu um erro ao tentar enviar a sua mensagem. Por favor, tente novamente mais tarde.", "danger")
-        return redirect(url_for('feedback')) # LINHA ALTERADA AQUI
-    else:
-        return render_template('sobre.html')
+    email = request.form.get('email')
+    message = request.form.get('feedback_message')
+    msg = Message(
+        subject=f"Novo Feedback de {email or 'Anônimo'}",
+        recipients=[os.environ.get('MAIL_USERNAME')]
+    )
+    msg.body = f"""
+    Um novo feedback foi enviado através do XMarkup.
+    
+    De: {email or 'Não informado'}
+    Mensagem:
+    -----------------
+    {message}
+    -----------------
+    """
+    try:
+        mail.send(msg)
+        flash("Obrigado pelo seu feedback! A sua mensagem foi enviada.", "success")
+    except Exception as e:
+        print(f"ERRO AO ENVIAR E-MAIL DE FEEDBACK: {e}")
+        flash("Ocorreu um erro ao tentar enviar a sua mensagem. Por favor, tente novamente mais tarde.", "danger")
+    return redirect(url_for('sobre'))
 
 # --- ROTAS DE ADMIN ---
 @app.route('/admin/dashboard')
@@ -1840,53 +1550,15 @@ def baixar_historico_completo():
     )
 
 # --- ROTAS DA NOVA FUNCIONALIDADE DE CONCORRENTES ---
-# Lógica de scraping básica (manter se houver planos futuros, caso contrário, remover)
-def scrape_price_from_url(url):
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
-        price_meta = soup.find('meta', itemprop='price')
-        if price_meta and price_meta.get('content'):
-            try:
-                price_str = price_meta['content'].replace('.', '').replace(',', '.').strip()
-                return float(re.sub(r'[^\d.]', '', price_str))
-            except ValueError:
-                pass
-        price_tags = soup.find_all(class_=lambda x: x and ('price' in x.lower() or 'valor' in x.lower()))
-        for tag in price_tags:
-            text = tag.get_text(strip=True)
-            match = re.search(r'R\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})', text)
-            if not match:
-                match = re.search(r'(\d{1,3}(?:,\d{3})*\.\d{2})', text)
-            if match:
-                try:
-                    price_str = match.group(1).replace('.', '').replace(',', '.')
-                    return float(price_str)
-                except ValueError:
-                    continue
-        app.logger.warning(f"Preço não encontrado ou não pôde ser parseado para a URL: {url}")
-        return None
-    except requests.exceptions.RequestException as e:
-        app.logger.error(f"Erro ao aceder a URL {url}: {e}")
-        return None
-    except Exception as e:
-        app.logger.error(f"Erro inesperado no scraping para URL {url}: {e}")
-        return None
-
 @app.route('/competitors')
 @login_required
 def competitor_monitor():
     db = get_db()
-    # MODIFICADO: JOIN com a tabela competitors para pegar o nome do concorrente
+    # Pega todos os produtos de concorrentes adicionados pelo utilizador atual
     competitor_products_raw = db.execute(
-        '''SELECT cp.id, cp.product_name, cp.product_url, c.name as competitor_name, cp.marketplace, cp.last_checked_at,
+        '''SELECT cp.id, cp.product_name, cp.product_url, cp.competitor_name, cp.marketplace, cp.last_checked_at,
                   (SELECT price FROM competitor_price_history WHERE product_id = cp.id ORDER BY checked_at DESC LIMIT 1) as current_price
            FROM competitor_products cp
-           JOIN competitors c ON cp.competitor_profile_id = c.id
            WHERE cp.user_id = ?
            ORDER BY cp.created_at DESC''',
         (current_user.id,)
@@ -1896,12 +1568,13 @@ def competitor_monitor():
     for p in competitor_products_raw:
         item = dict(p)
         if item['last_checked_at']:
+            # Formata a data para exibir
             item['last_checked_at'] = datetime.strptime(item['last_checked_at'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y %H:%M')
         else:
             item['last_checked_at'] = 'N/A'
         
         if item['current_price'] is None:
-            item['current_price'] = 'N/A'
+            item['current_price'] = 'N/A' # Ou R$ 0,00, dependendo da preferência
         else:
             item['current_price'] = f"R$ {item['current_price']:.2f}".replace(".", "X").replace(",", ".").replace("X", ",")
             
@@ -1909,120 +1582,55 @@ def competitor_monitor():
 
     return render_template('competitor_monitor.html', products=competitor_products)
 
-# ADICIONADO: Rota para acionar o scraping manualmente para um produto (manter se houver planos futuros)
-@app.route('/competitors/scrape/<int:product_id>', methods=['POST'])
-@login_required
-def scrape_competitor_price(product_id):
-    db = get_db()
-    product = db.execute(
-        'SELECT id, product_url, product_name FROM competitor_products WHERE id = ? AND user_id = ?',
-        (product_id, current_user.id)
-    ).fetchone()
-
-    if not product:
-        flash('Produto de concorrente não encontrado ou acesso não permitido.', 'danger')
-        return redirect(url_for('competitor_monitor'))
-
-    scraped_price = scrape_price_from_url(product['product_url'])
-
-    if scraped_price is not None:
-        try:
-            cursor = db.cursor()
-            cursor.execute(
-                'INSERT INTO competitor_price_history (product_id, price) VALUES (?, ?)',
-                (product_id, scraped_price)
-            )
-            cursor.execute(
-                'UPDATE competitor_products SET last_checked_at = ? WHERE id = ?',
-                (datetime.now(), product_id)
-            )
-            db.commit()
-            flash(f"Preço atualizado para '{product['product_name']}' (R$ {scraped_price:.2f}) com sucesso!", "success")
-        except Exception as e:
-            flash(f"Erro ao guardar o preço raspado: {e}", "danger")
-            db.rollback()
-    else:
-        flash(f"Não foi possível obter o preço para '{product['product_name']}'. Verifique a URL ou a estrutura da página.", "warning")
-    
-    return redirect(url_for('competitor_product_history', product_id=product_id))
-
-# MODIFICADO: Rota add_competitor_product para usar perfis de concorrentes
 @app.route('/competitors/add', methods=['GET', 'POST'])
 @login_required
 def add_competitor_product():
-    db = get_db()
-    
-    # Pega a lista de perfis de concorrentes do utilizador para o dropdown
-    competitor_profiles = db.execute(
-        'SELECT id, name FROM competitors WHERE user_id = ? ORDER BY name',
-        (current_user.id,)
-    ).fetchall()
-
     if request.method == 'POST':
-        product_name = request.form.get('product_name').strip()
-        product_url = request.form.get('product_url').strip()
-        competitor_profile_id = request.form.get('competitor_profile_id')
-        marketplace = request.form.get('marketplace').strip() # 'Site Próprio', 'Mercado Livre', 'Shopee', 'Amazon'
+        product_name = request.form.get('product_name')
+        product_url = request.form.get('product_url')
+        competitor_name = request.form.get('competitor_name')
+        marketplace = request.form.get('marketplace')
         initial_price = request.form.get('initial_price')
 
-        # Validação básica
-        if not product_name or not product_url or not competitor_profile_id or not marketplace:
-            flash('Por favor, preencha todos os campos obrigatórios (Nome do Produto, URL, Concorrente e Marketplace).', 'danger')
-            return render_template('add_competitor_product.html', competitor_profiles=competitor_profiles)
-
-        try:
-            competitor_profile_id = int(competitor_profile_id)
-        except ValueError:
-            flash('Concorrente selecionado inválido.', 'danger')
-            return render_template('add_competitor_product.html', competitor_profiles=competitor_profiles)
-            
+        db = get_db()
         cursor = db.cursor()
 
         try:
-            # Verifica se o produto já existe para este concorrente/URL/marketplace
-            existing_product = cursor.execute(
-                '''SELECT id FROM competitor_products WHERE user_id = ? AND product_url = ? AND marketplace = ?''',
-                (current_user.id, product_url, marketplace)
-            ).fetchone()
+            # Insere o novo produto de concorrente
+            cursor.execute(
+                '''INSERT INTO competitor_products (user_id, product_name, product_url, competitor_name, marketplace)
+                   VALUES (?, ?, ?, ?, ?)''',
+                (current_user.id, product_name, product_url, competitor_name, marketplace)
+            )
+            product_id = cursor.lastrowid
 
-            if existing_product:
-                flash(f"Um produto com esta URL e marketplace já está a ser monitorizado para este concorrente.", "warning")
-            else:
-                # Insere o novo produto de concorrente
+            # Se um preço inicial for fornecido, adiciona-o ao histórico
+            if initial_price:
+                price = float(initial_price.replace(',', '.'))
                 cursor.execute(
-                    '''INSERT INTO competitor_products (user_id, competitor_profile_id, product_name, product_url, marketplace)
-                       VALUES (?, ?, ?, ?, ?)''',
-                    (current_user.id, competitor_profile_id, product_name, product_url, marketplace)
+                    '''INSERT INTO competitor_price_history (product_id, price)
+                       VALUES (?, ?)''',
+                    (product_id, price)
                 )
-                product_id = cursor.lastrowid
-
-                # Se um preço inicial for fornecido, adiciona-o ao histórico
-                if initial_price:
-                    price = float(initial_price.replace(',', '.'))
-                    cursor.execute(
-                        '''INSERT INTO competitor_price_history (product_id, price)
-                           VALUES (?, ?)''',
-                        (product_id, price)
-                    )
-                
-                db.commit()
-                flash('Produto de concorrente adicionado com sucesso!', 'success')
-                return redirect(url_for('competitor_monitor'))
+            
+            db.commit()
+            flash('Produto de concorrente adicionado com sucesso!', 'success')
+            return redirect(url_for('competitor_monitor'))
 
         except ValueError:
             flash('Preço inicial inválido. Por favor, insira um número válido.', 'danger')
         except Exception as e:
             flash(f'Ocorreu um erro ao adicionar o produto: {e}', 'danger')
-            app.logger.error(f"Erro ao adicionar produto de concorrente: {e}", exc_info=True)
-            db.rollback()
+            db.rollback() # Reverte a transação em caso de erro
         
-    return render_template('add_competitor_product.html', competitor_profiles=competitor_profiles)
+    return render_template('add_competitor_product.html')
 
 @app.route('/competitors/delete/<int:product_id>', methods=['POST'])
 @login_required
 def delete_competitor_product(product_id):
     db = get_db()
     try:
+        # Garante que o utilizador só pode apagar os seus próprios produtos
         db.execute('DELETE FROM competitor_products WHERE id = ? AND user_id = ?', (product_id, current_user.id))
         db.commit()
         flash('Produto de concorrente excluído com sucesso!', 'success')
@@ -2035,126 +1643,26 @@ def delete_competitor_product(product_id):
 @login_required
 def competitor_product_history(product_id):
     db = get_db()
-    # MODIFICADO: JOIN com a tabela competitors para pegar o nome do concorrente
-    product = db.execute('''
-        SELECT cp.*, c.name as competitor_name
-        FROM competitor_products cp
-        JOIN competitors c ON cp.competitor_profile_id = c.id
-        WHERE cp.id = ? AND cp.user_id = ?''', (product_id, current_user.id)).fetchone()
-        
+    # Pega os detalhes do produto e o histórico de preços
+    product = db.execute('SELECT * FROM competitor_products WHERE id = ? AND user_id = ?', (product_id, current_user.id)).fetchone()
     if not product:
         flash('Produto não encontrado ou acesso não permitido.', 'danger')
         return redirect(url_for('competitor_monitor'))
 
-    # MODIFICADO AQUI: Lógica mais robusta para parsing da data
-    history_raw = db.execute('SELECT price, checked_at FROM competitor_price_history WHERE product_id = ? ORDER BY checked_at ASC', (product_id,)).fetchall() # ASC para o gráfico
+    history_raw = db.execute('SELECT price, checked_at FROM competitor_price_history WHERE product_id = ? ORDER BY checked_at DESC', (product_id,)).fetchall()
     
     history = []
     for h in history_raw:
-        checked_at_str = h['checked_at']
-        parsed_dt = None
-        # Tenta parsear sem microssegundos primeiro (mais comum para CURRENT_TIMESTAMP)
-        try:
-            parsed_dt = datetime.strptime(checked_at_str, '%Y-%m-%d %H:%M:%S')
-        except ValueError:
-            # Se falhar, tenta com microssegundos (menos comum para CURRENT_TIMESTAMP, mas seguro)
-            try:
-                parsed_dt = datetime.strptime(checked_at_str, '%Y-%m-%d %H:%M:%S.%f')
-            except ValueError:
-                # Se ambos falharem, loga e continua (ou lida com o erro de outra forma)
-                app.logger.error(f"Erro ao parsear data: {checked_at_str}. Formato inesperado.")
-                parsed_dt = None # Ou alguma data padrão para evitar quebrar
-        
-        if parsed_dt:
-            history.append({
-                'price': h['price'],
-                'checked_at': parsed_dt.strftime('%d/%m/%Y %H:%M:%S')
-            })
-        else:
-            history.append({ # Fallback se a data não puder ser parseada
-                'price': h['price'],
-                'checked_at': checked_at_str # Exibe a string original, mas o gráfico pode falhar
-            })
-            
-    # Prepara dados para gráfico
-    chart_labels = [h['checked_at'] for h in history] # Data completa para precisão
-    chart_data = [h['price'] for h in history]
+        history.append({
+            'price': h['price'],
+            'checked_at': datetime.strptime(h['checked_at'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y %H:%M:%S')
+        })
+
+    # Prepara dados para gráfico (se houver)
+    chart_labels = [h['checked_at'].split(' ')[0] for h in reversed(history)] # Apenas a data
+    chart_data = [h['price'] for h in reversed(history)]
 
     return render_template('competitor_product_history.html', product=product, history=history, chart_labels=chart_labels, chart_data=chart_data)
-
-@app.route('/competitors/compare')
-@login_required
-def competitor_comparison_graph():
-    db = get_db()
-    
-    # Obter os IDs dos produtos da query string (ex: ?ids=1,2,3)
-    product_ids_str = request.args.get('ids', '')
-    if not product_ids_str:
-        flash('Nenhum produto selecionado para comparação.', 'warning')
-        return redirect(url_for('competitor_monitor'))
-    
-    try:
-        product_ids = [int(p_id) for p_id in product_ids_str.split(',') if p_id.isdigit()]
-    except ValueError:
-        flash('IDs de produto inválidos.', 'danger')
-        return redirect(url_for('competitor_monitor'))
-
-    if len(product_ids) < 2:
-        flash('Selecione pelo menos dois produtos para comparar.', 'warning')
-        return redirect(url_for('competitor_monitor'))
-
-    # Dicionário para armazenar os dados de cada produto
-    comparison_data = {}
-    
-    for p_id in product_ids:
-        # Buscar detalhes do produto e garantir que pertence ao utilizador
-        product = db.execute('''
-            SELECT cp.id, cp.product_name, c.name as competitor_name, cp.marketplace
-            FROM competitor_products cp
-            JOIN competitors c ON cp.competitor_profile_id = c.id
-            WHERE cp.id = ? AND cp.user_id = ?''', (p_id, current_user.id)).fetchone()
-            
-        if product:
-            # Buscar histórico de preços
-            history_raw = db.execute(
-                'SELECT price, checked_at FROM competitor_price_history WHERE product_id = ? ORDER BY checked_at ASC',
-                (p_id,)
-            ).fetchall()
-            
-            history_formatted = []
-            for h in history_raw:
-                checked_at_str = h['checked_at']
-                parsed_dt = None
-                try:
-                    parsed_dt = datetime.strptime(checked_at_str, '%Y-%m-%d %H:%M:%S')
-                except ValueError:
-                    try:
-                        parsed_dt = datetime.strptime(checked_at_str, '%Y-%m-%d %H:%M:%S.%f')
-                    except ValueError:
-                        app.logger.error(f"Erro ao parsear data: {checked_at_str}. Formato inesperado.")
-                        parsed_dt = None
-                
-                if parsed_dt:
-                    history_formatted.append({
-                        'price': h['price'],
-                        'checked_at': parsed_dt.strftime('%Y-%m-%d %H:%M:%S') # Formato padronizado para Chart.js
-                    })
-
-            if history_formatted:
-                comparison_data[p_id] = {
-                    'product_info': dict(product),
-                    'history': history_formatted
-                }
-            else:
-                flash(f"Nenhum histórico encontrado para o produto '{product['product_name']}'.", "info")
-        else:
-            flash(f"Produto com ID {p_id} não encontrado ou não autorizado.", "warning")
-            
-    if not comparison_data:
-        flash('Nenhum produto válido com histórico encontrado para comparação.', 'danger')
-        return redirect(url_for('competitor_monitor'))
-
-    return render_template('competitor_comparison_graph.html', comparison_data=comparison_data)
 
 # --- COMANDO CLI PARA PROMOVER UTILIZADOR A ADMIN ---
 @app.cli.command("promote-user")

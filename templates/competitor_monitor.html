@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Monitoramento de Concorrentes{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% include 'partials/_flash_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <span class="mdi mdi-chart-bell-curve-cumulative me-2"></span>Monitoramento de Concorrentes
+        </h2>
+        <a href="{{ url_for('add_competitor_product') }}" class="btn btn-primary">
+            <span class="mdi mdi-plus-circle-outline me-1"></span>Adicionar Concorrente
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-header fw-bold">
+            <div class="d-flex justify-content-between align-items-center">
+                Produtos Monitorados
+                <button type="button" id="compare-selected-btn" class="btn btn-sm btn-outline-info" disabled>
+                    <span class="mdi mdi-chart-line me-1"></span>Comparar Selecionados
+                </button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            {% if products %}
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">
+                            <input type="checkbox" id="select-all-products" class="form-check-input">
+                        </th>
+                        <th>Nome do Produto</th>
+                        <th>Concorrente</th>
+                        <th>Marketplace</th>
+                        <th>Preço Atual</th>
+                        <th>Última Verificação</th>
+                        <th class="text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in products %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" class="form-check-input product-checkbox" value="{{ product.id }}">
+                        </td>
+                        <td>
+                            <a href="{{ product.product_url }}" target="_blank" rel="noopener noreferrer">
+                                {{ product.product_name }}
+                                <span class="mdi mdi-link-variant mdi-18px ms-1 text-muted"></span>
+                            </a>
+                        </td>
+                        <td>{{ product.competitor_name }}</td>
+                        <td>{{ product.marketplace or 'N/A' }}</td>
+                        <td class="fw-bold">{{ product.current_price }}</td>
+                        <td>{{ product.last_checked_at }}</td>
+                        <td class="text-center">
+                            <a href="{{ url_for('competitor_product_history', product_id=product.id) }}" class="btn btn-sm btn-outline-info me-1" title="Ver Histórico">
+                                <span class="mdi mdi-chart-line"></span>
+                            </a>
+                            {# Manter ou remover o botão de scraping, dependendo da decisão #}
+                            {#
+                            <form action="{{ url_for('scrape_competitor_price', product_id=product.id) }}" method="POST" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-success me-1" title="Atualizar Preço (Scrape)">
+                                    <span class="mdi mdi-refresh"></span>
+                                </button>
+                            </form>
+                            #}
+                            <form action="{{ url_for('delete_competitor_product', product_id=product.id) }}" method="POST" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="return confirm('Tem certeza que deseja excluir este produto do monitoramento?')">
+                                    <span class="mdi mdi-trash-can-outline"></span>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="p-4 text-center text-muted">
+                <p class="mb-0">Nenhum produto de concorrente a ser monitorado ainda.</p>
+                <p class="mb-0">Comece por <a href="{{ url_for('add_competitor_product') }}">adicionar um produto</a>.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllCheckbox = document.getElementById('select-all-products');
+    const productCheckboxes = document.querySelectorAll('.product-checkbox');
+    const compareButton = document.getElementById('compare-selected-btn');
+
+    function toggleCompareButton() {
+        const checkedCount = document.querySelectorAll('.product-checkbox:checked').length;
+        compareButton.disabled = checkedCount < 2; // Habilitar se pelo menos 2 produtos estiverem selecionados
+    }
+
+    // Listener para o checkbox "Selecionar Todos"
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            productCheckboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            toggleCompareButton();
+        });
+    }
+
+    // Listener para cada checkbox de produto
+    productCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            // Se algum checkbox individual for desmarcado, desmarcar "Selecionar Todos"
+            if (!this.checked && selectAllCheckbox) {
+                selectAllCheckbox.checked = false;
+            }
+            // Se todos os checkboxes individuais forem marcados, marcar "Selecionar Todos"
+            if (document.querySelectorAll('.product-checkbox:checked').length === productCheckboxes.length && productCheckboxes.length > 0 && selectAllCheckbox) {
+                selectAllCheckbox.checked = true;
+            }
+            toggleCompareButton();
+        });
+    });
+
+    // Listener para o botão "Comparar Selecionados"
+    if (compareButton) {
+        compareButton.addEventListener('click', function() {
+            const selectedProductIds = [];
+            document.querySelectorAll('.product-checkbox:checked').forEach(checkbox => {
+                selectedProductIds.push(checkbox.value);
+            });
+
+            if (selectedProductIds.length >= 2) {
+                // Redirecionar para a nova rota de comparação com os IDs
+                window.location.href = `/competitors/compare?ids=${selectedProductIds.join(',')}`;
+            } else {
+                alert('Por favor, selecione pelo menos dois produtos para comparar.');
+            }
+        });
+    }
+
+    // Inicializar o estado do botão ao carregar a página
+    toggleCompareButton();
+});
+</script>
+{% endblock %}

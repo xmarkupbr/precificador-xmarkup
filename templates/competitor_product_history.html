@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Histórico de Preços: {{ product.product_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% include 'partials/_flash_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <span class="mdi mdi-chart-line me-2"></span>Histórico de Preços: {{ product.product_name }}
+        </h2>
+        <a href="{{ url_for('competitor_monitor') }}" class="btn btn-outline-secondary">
+            <span class="mdi mdi-arrow-left me-1"></span>Voltar ao Monitoramento
+        </a>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header fw-bold">Detalhes do Produto</div>
+        <div class="card-body">
+            <p><strong>Concorrente:</strong> {{ product.competitor_name }}</p>
+            <p><strong>Marketplace:</strong> {{ product.marketplace or 'N/A' }}</p>
+            <p><strong>URL:</strong> <a href="{{ product.product_url }}" target="_blank" rel="noopener noreferrer">{{ product.product_url }}</a></p>
+            <p><strong>Adicionado em:</strong> {{ (product.created_at | string).split('.')[0] }}</p>
+            <p><strong>Última Verificação:</strong> {{ (product.last_checked_at | string).split('.')[0] }}</p>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header fw-bold">Gráfico de Histórico de Preços</div>
+        <div class="card-body">
+            {% if chart_data %}
+                <canvas id="priceHistoryChart"></canvas>
+            {% else %}
+                <div class="text-center text-muted p-4">
+                    <p class="mb-0">Não há dados de histórico de preços para exibir o gráfico.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header fw-bold">Registos de Preço</div>
+        <div class="table-responsive">
+            {% if history %}
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Data e Hora</th>
+                        <th>Preço (R$)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in history %}
+                    <tr>
+                        <td>{{ entry.checked_at }}</td>
+                        <td>R$ {{ "%.2f"|format(entry.price) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="p-4 text-center text-muted">
+                <p class="mb-0">Nenhum registo de preço encontrado para este produto.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('priceHistoryChart');
+    const chartLabels = {{ chart_labels | tojson }};
+    const chartData = {{ chart_data | tojson }};
+
+    if (ctx && chartData.length > 0) {
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartLabels,
+                datasets: [{
+                    label: 'Preço (R$)',
+                    data: chartData,
+                    borderColor: 'rgb(126, 65, 196)', // Cor roxa da sua paleta
+                    backgroundColor: 'rgba(126, 65, 196, 0.2)',
+                    tension: 0.1,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Variação de Preço ao Longo do Tempo'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        title: {
+                            display: true,
+                            text: 'Preço (R$)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Data'
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

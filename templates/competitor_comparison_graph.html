@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Comparação de Preços de Concorrentes{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% include 'partials/_flash_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <span class="mdi mdi-chart-multiline me-2"></span>Comparação de Preços
+        </h2>
+        <a href="{{ url_for('competitor_monitor') }}" class="btn btn-outline-secondary">
+            <span class="mdi mdi-arrow-left me-1"></span>Voltar ao Monitoramento
+        </a>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header fw-bold">Gráfico Comparativo de Preços</div>
+        <div class="card-body">
+            {% if comparison_data %}
+                <canvas id="comparisonChart"></canvas>
+            {% else %}
+                <div class="text-center text-muted p-4">
+                    <p class="mb-0">Não há dados suficientes para gerar o gráfico de comparação.</p>
+                    <p class="mb-0">Certifique-se de que os produtos selecionados têm histórico de preços.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header fw-bold">Detalhes dos Produtos Comparados</div>
+        <div class="table-responsive">
+            {% if comparison_data %}
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Produto</th>
+                        <th>Concorrente</th>
+                        <th>Marketplace</th>
+                        <th>URL</th>
+                        <th>Preço Atual</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product_id, data in comparison_data.items() %}
+                    <tr>
+                        <td>{{ data.product_info.product_name }}</td>
+                        <td>{{ data.product_info.competitor_name }}</td>
+                        <td>{{ data.product_info.marketplace or 'N/A' }}</td>
+                        <td><a href="{{ data.product_info.product_url }}" target="_blank" rel="noopener noreferrer">Link</a></td>
+                        <td>
+                            {% if data.history %}
+                                R$ {{ "%.2f"|format(data.history[-1].price) }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="p-4 text-center text-muted">
+                <p class="mb-0">Nenhum detalhe de produto para exibir.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('comparisonChart');
+    const comparisonData = {{ comparison_data | tojson }};
+
+    if (ctx && Object.keys(comparisonData).length > 0) {
+        const datasets = [];
+        const allDates = new Set();
+        const colors = [
+            'rgb(126, 65, 196)',   // Roxo Principal
+            'rgb(255, 99, 132)',   // Vermelho
+            'rgb(54, 162, 235)',   // Azul
+            'rgb(255, 205, 86)',   // Amarelo
+            'rgb(75, 192, 192)',   // Verde Água
+            'rgb(153, 102, 255)',  // Roxo Claro
+            'rgb(255, 159, 64)',   // Laranja
+            'rgb(201, 203, 207)'   // Cinza
+        ];
+        let colorIndex = 0;
+
+        for (const productId in comparisonData) {
+            const productData = comparisonData[productId];
+            const productName = productData.product_info.product_name;
+            const competitorName = productData.product_info.competitor_name;
+            const label = `${productName} (${competitorName})`;
+
+            const dataPoints = [];
+            productData.history.forEach(entry => {
+                allDates.add(entry.checked_at);
+                dataPoints.push({ x: entry.checked_at, y: entry.price });
+            });
+
+            datasets.push({
+                label: label,
+                data: dataPoints,
+                borderColor: colors[colorIndex % colors.length],
+                backgroundColor: colors[colorIndex % colors.length],
+                tension: 0.1,
+                fill: false,
+                pointRadius: 3,
+                pointHoverRadius: 5
+            });
+            colorIndex++;
+        }
+
+        const sortedDates = Array.from(allDates).sort();
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sortedDates,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Comparação do Histórico de Preços'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: function(context) {
+                                // Exibir a data completa no título do tooltip
+                                return context[0].label;
+                            },
+                            label: function(context) {
+                                // Exibir o nome do produto e o preço
+                                const datasetLabel = context.dataset.label || '';
+                                return `${datasetLabel}: R$ ${context.parsed.y.toFixed(2).replace('.', ',')}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            parser: 'YYYY-MM-DD HH:mm:ss',
+                            unit: 'day', // Ajusta a unidade de exibição (day, hour, etc.)
+                            tooltipFormat: 'DD/MM/YYYY HH:mm:ss', // Formato do tooltip
+                            displayFormats: {
+                                day: 'DD/MM/YYYY',
+                                hour: 'DD/MM HH:mm'
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Data'
+                        }
+                    },
+                    y: {
+                        beginAtZero: false,
+                        title: {
+                            display: true,
+                            text: 'Preço (R$)'
+                        },
+                        ticks: {
+                            callback: function(value, index, ticks) {
+                                return 'R$ ' + value.toFixed(2).replace('.', ',');
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/locale/pt-br.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.0"></script>
+{% endblock %}

@@ -63,6 +63,19 @@
                             <button type="submit" class="btn btn-primary"><span class="mdi mdi-content-save me-1"></span>Salvar Configurações</button>
                         </div>
                     </form>
+                    
+                    <hr class="my-4">
+                    
+                    <h5 class="form-section-title mt-4">Outras Configurações</h5>
+                    <div class="list-group">
+                        <a href="{{ url_for('settings_competitors') }}" class="list-group-item list-group-item-action d-flex align-items-center">
+                            <span class="mdi mdi-account-group-outline me-2"></span>
+                            Gerir Concorrentes
+                            <span class="mdi mdi-chevron-right ms-auto"></span>
+                        </a>
+                        {# Adicione aqui outros links de configuração se houver no futuro #}
+                    </div>
+
                 </div>
             </div>
         </div>
