@@ -886,32 +886,6 @@ footer p {
 }
 
 /* ================================================= */
-/* PRODUTOS DERIVADOS
-/* ================================================= */
-
-/* Estilo para linhas de produtos derivados */
-#tabela-produtos tbody tr[data-derived="true"] {
-    background-color: rgba(126, 65, 196, 0.05);
-    border-left: 3px solid var(--color-purple);
-}
-
-#tabela-produtos tbody tr[data-derived="true"]:hover {
-    background-color: rgba(126, 65, 196, 0.1);
-}
-
-/* Badge para identificar produtos derivados */
-.badge-derived {
-    background-color: var(--color-purple);
-    color: var(--color-white);
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: var(--border-radius-sm);
-    margin-left: 0.5rem;
-    font-weight: var(--font-weight-medium);
-}
-
-/* Tooltip para produtos derivados */
-.derived-info {
     cursor: help;
     border-bottom: 1px dashed var(--color-purple);
 }

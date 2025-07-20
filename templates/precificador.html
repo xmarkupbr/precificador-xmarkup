@@ -139,7 +139,6 @@
                                 <th>Merc. Livre</th>
                                 <th>Shopee</th>
                                 <th class="text-center">Ação</th>
-                                <th class="text-center">Derivar</th> </tr>
                         </thead>
                         <tbody>
                             {% for row in produtos %}
@@ -149,16 +148,10 @@
                                 data-seguro-total="{{ row['seguro_total'] }}" 
                                 data-outros-total="{{ row['outros_total'] }}" 
                                 data-desc-total="{{ row['desc_total'] }}" 
-                                data-custo-unitario="{{ row['Custo Unitário (R$)'] }}"
-                                {% if row["Série NF-e"].startswith("DERIVADO_") %}data-derived="true"{% endif %}>
+                                data-custo-unitario="{{ row['Custo Unitário (R$)'] }}">
                                 
                                 <td>
                                     {{ row["Série NF-e"] }}
-                                    {% if row["Série NF-e"].startswith("DERIVADO_") %}
-                                        <span class="badge badge-derived" title="Produto derivado">
-                                            <span class="mdi mdi-call-split"></span> Derivado
-                                        </span>
-                                    {% endif %}
                                 </td>
                                 <td>
                                     <input name="codigo[]" value="{{ row['Código'] }}" class="form-control form-control-sm editable-cell" style="min-width:110px;">
@@ -175,27 +168,10 @@
                                 <td class="cell-preco-shopee"><span>{{ row["Shopee (R$)"]|brl }}</span></td>
                                 <td class="text-center">
                                     <button type="button" class="btn btn-sm btn-outline-danger btn-excluir-item" 
-                                            title="{% if row["Série NF-e"].startswith("DERIVADO_") %}Excluir e devolver quantidade ao original{% else %}Excluir item{% endif %}">
+                                            title="Excluir item">
                                         <span class="mdi mdi-trash-can-outline"></span>
                                     </button>
                                 </td>
-                                <td class="text-center">
-                                    {% if not row["Série NF-e"].startswith("DERIVADO_") %}
-                                    <button type="button" class="btn btn-sm btn-outline-info btn-criar-derivado" 
-                                            title="Criar produto derivado"
-                                            data-bs-toggle="modal" 
-                                            data-bs-target="#criarDerivadoModal"
-                                            data-nfe-serie="{{ row['Série NF-e'] }}"
-                                            data-codigo-original="{{ row['Código'] }}"
-                                            data-nome-original="{{ row['Nome'] }}"
-                                            data-qtd-original="{{ row['Qtd']|int }}">
-                                        <span class="mdi mdi-call-split"></span>
-                                    </button>
-                                    {% else %}
-                                    <span class="text-muted" title="Produtos derivados não podem gerar outros derivados">
-                                        <span class="mdi mdi-minus"></span>
-                                    </span>
-                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}
@@ -235,44 +211,6 @@
     {% endif %}
 </div>
 
-<div class="modal fade" id="criarDerivadoModal" tabindex="-1" aria-labelledby="criarDerivadoModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="criarDerivadoModalLabel">Criar Produto Derivado</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <form id="formCriarDerivado">
-        <div class="modal-body">
-            <p class="text-muted small">Criará um novo item a partir do item original do XML/Planilha.</p>
-            <p>Item Original: <strong id="originalProductName"></strong> (<span id="originalProductCode"></span>)</p>
-            <p>Quantidade Disponível: <strong id="originalProductQtd"></strong> unidades</p>
-            <hr>
-            <input type="hidden" id="modalPrecId" name="prec_id" value="{{ prec_id }}">
-            <input type="hidden" id="modalOriginalNfeSerie" name="original_nfe_serie">
-            <input type="hidden" id="modalOriginalProductCode" name="original_product_code">
-
-            <div class="mb-3">
-                <label for="novoCodigoDerivado" class="form-label">Novo Código do Produto Derivado</label>
-                <input type="text" class="form-control" id="novoCodigoDerivado" name="novo_codigo_derivado" required>
-            </div>
-            <div class="mb-3">
-                <label for="novoNomeDerivado" class="form-label">Novo Nome/Descrição do Produto Derivado</label>
-                <input type="text" class="form-control" id="novoNomeDerivado" name="novo_nome_derivado" required>
-            </div>
-            <div class="mb-3">
-                <label for="novaQtdDerivado" class="form-label">Quantidade do Produto Derivado</label>
-                <input type="number" class="form-control" id="novaQtdDerivado" name="nova_qtd_derivado" min="1" required>
-            </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Criar Derivado</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
 
 {% endblock %}
 
@@ -282,91 +220,69 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.23/dist/jspdf.plugin.autotable.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    var criarDerivadoModal = document.getElementById('criarDerivadoModal');
-    if (criarDerivadoModal) {
-        criarDerivadoModal.addEventListener('show.bs.modal', function (event) {
-            // Botão que acionou o modal
-            var button = event.relatedTarget; 
-            // Extrair informações dos atributos data-*
-            var nfeSerie = button.getAttribute('data-nfe-serie');
-            var codigoOriginal = button.getAttribute('data-codigo-original');
-            var nomeOriginal = button.getAttribute('data-nome-original');
-            var qtdOriginal = button.getAttribute('data-qtd-original');
-
-            // Atualizar o conteúdo do modal
-            var modalPrecId = criarDerivadoModal.querySelector('#modalPrecId');
-            var originalProductName = criarDerivadoModal.querySelector('#originalProductName');
-            var originalProductCode = criarDerivadoModal.querySelector('#originalProductCode');
-            var originalProductQtd = criarDerivadoModal.querySelector('#originalProductQtd');
-            var modalOriginalNfeSerie = criarDerivadoModal.querySelector('#modalOriginalNfeSerie');
-            var modalOriginalProductCode = criarDerivadoModal.querySelector('#modalOriginalProductCode');
-            var novaQtdDerivadoInput = criarDerivadoModal.querySelector('#novaQtdDerivado');
-
-            originalProductName.textContent = nomeOriginal;
-            originalProductCode.textContent = codigoOriginal;
-            originalProductQtd.textContent = qtdOriginal;
-            modalOriginalNfeSerie.value = nfeSerie;
-            modalOriginalProductCode.value = codigoOriginal;
-            novaQtdDerivadoInput.setAttribute('max', qtdOriginal); // Define o máximo para a nova Qtd
-
-            // Limpa os campos do novo produto para cada abertura
-            criarDerivadoModal.querySelector('#novoCodigoDerivado').value = '';
-            criarDerivadoModal.querySelector('#novoNomeDerivado').value = '';
-            criarDerivadoModal.querySelector('#novaQtdDerivado').value = '';
-        });
-
-        // Adicionar listener para o envio do formulário do modal
-        var formCriarDerivado = document.getElementById('formCriarDerivado');
-        formCriarDerivado.addEventListener('submit', function(event) {
-            event.preventDefault(); // Impede o envio padrão do formulário
-
-            var precId = document.getElementById('modalPrecId').value;
-            var originalNfeSerie = document.getElementById('modalOriginalNfeSerie').value;
-            var originalProductCode = document.getElementById('modalOriginalProductCode').value;
-            var novoCodigoDerivado = document.getElementById('novoCodigoDerivado').value;
-            var novoNomeDerivado = document.getElementById('novoNomeDerivado').value;
-            var novaQtdDerivado = document.getElementById('novaQtdDerivado').value;
-            var originalProductQtd = document.getElementById('originalProductQtd').textContent; // Pega a qtd original do modal
-
-            // Validação de quantidade (pode ser mais robusta no backend)
-            if (parseInt(novaQtdDerivado) > parseInt(originalProductQtd)) {
-                alert('A quantidade do produto derivado não pode ser maior que a quantidade disponível do produto original.');
-                return;
+    // Funcionalidade de exclusão de itens
+    const botoesExcluir = document.querySelectorAll('.btn-excluir-item');
+    
+    botoesExcluir.forEach(function(botao) {
+        botao.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Encontrar a linha da tabela
+            const linha = this.closest('tr');
+            const nomeItem = linha.querySelector('input[name="nome[]"]').value;
+            const codigoItem = linha.querySelector('input[name="codigo[]"]').value;
+            
+            // Confirmar exclusão
+            if (confirm(`Tem certeza que deseja excluir o item "${nomeItem}" (${codigoItem})?`)) {
+                // Adicionar animação de fade out
+                linha.style.transition = 'opacity 0.3s ease';
+                linha.style.opacity = '0';
+                
+                // Remover a linha após a animação
+                setTimeout(function() {
+                    linha.remove();
+                    
+                    // Atualizar informações da tabela
+                    atualizarInfoTabela();
+                    
+                    // Mostrar mensagem de sucesso
+                    mostrarMensagem('Item excluído com sucesso!', 'success');
+                }, 300);
             }
-
-            // Enviar dados para o backend via AJAX
-            fetch(`/api/precificacao/${precId}/add_derived_product`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    original_nfe_serie: originalNfeSerie,
-                    original_product_code: originalProductCode,
-                    novo_codigo_derivado: novoCodigoDerivado,
-                    novo_nome_derivado: novoNomeDerivado,
-                    nova_qtd_derivado: parseInt(novaQtdDerivado)
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    alert('Produto derivado criado com sucesso!');
-                    // Opcional: recarregar a página ou atualizar a tabela via JS
-                    location.reload(); 
-                } else {
-                    alert('Erro ao criar produto derivado: ' + data.message);
-                }
-            })
-            .catch(error => {
-                console.error('Erro:', error);
-                alert('Erro de comunicação com o servidor ao criar produto derivado.');
-            })
-            .finally(() => {
-                var modal = bootstrap.Modal.getInstance(criarDerivadoModal);
-                if (modal) modal.hide();
-            });
         });
+    });
+    
+    // Função para atualizar informações da tabela
+    function atualizarInfoTabela() {
+        const totalLinhas = document.querySelectorAll('#tabela-produtos tbody tr').length;
+        const infoElement = document.getElementById('table-info');
+        if (infoElement) {
+            infoElement.textContent = `Mostrando ${totalLinhas} de ${totalLinhas} produtos`;
+        }
+    }
+    
+    // Função para mostrar mensagens
+    function mostrarMensagem(texto, tipo) {
+        // Criar elemento de alerta
+        const alerta = document.createElement('div');
+        alerta.className = `alert alert-${tipo} alert-dismissible fade show`;
+        alerta.innerHTML = `
+            ${texto}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        // Inserir no início do container
+        const container = document.querySelector('.container');
+        if (container) {
+            container.insertBefore(alerta, container.firstChild);
+            
+            // Remover automaticamente após 3 segundos
+            setTimeout(function() {
+                if (alerta.parentNode) {
+                    alerta.remove();
+                }
+            }, 3000);
+        }
     }
 });
 </script>

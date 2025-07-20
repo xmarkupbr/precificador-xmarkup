@@ -338,19 +338,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 updatePriceAlerts();
             }
         });
-        document.body.addEventListener('click', function(event) {
-            const deleteButton = event.target.closest('.btn-excluir-item');
-            if (deleteButton) {
-                const row = deleteButton.closest('tr');
-                // Adiciona uma animação de fade-out para suavidade
-                row.style.transition = 'opacity 0.3s ease-out';
-                row.style.opacity = '0';
-                setTimeout(() => {
-                    row.remove();
-                    recalculateAllRows(); // Recalcula tudo após remover o item
-                }, 300);
-            }
-        });
         
         // Busca
         const buscaInput = document.getElementById("busca-produto");
@@ -485,82 +472,5 @@ document.addEventListener('DOMContentLoaded', function() {
 
         passwordInput.addEventListener('input', validatePasswords);
         passwordConfirmInput.addEventListener('input', validatePasswords);
-    }
-});
-// Função para verificar se existem produtos derivados na tabela
-function hasDerivedProducts() {
-    const derivedRows = document.querySelectorAll('#tabela-produtos tbody tr[data-derived="true"]');
-    return derivedRows.length > 0;
-}
-
-// Função para obter informações sobre produtos derivados
-function getDerivedProductsInfo() {
-    const derivedProducts = [];
-    const derivedRows = document.querySelectorAll('#tabela-produtos tbody tr[data-derived="true"]');
-    
-    derivedRows.forEach(row => {
-        const nfeSerie = row.cells[0].textContent.trim();
-        const originalSerie = nfeSerie.replace("DERIVADO_", "");
-        const codigo = row.querySelector("input[name='codigo[]']").value;
-        const nome = row.querySelector("input[name='nome[]']").value;
-        const qtd = parseFloat(row.querySelector("input[name='qtd[]']").value);
-        
-        derivedProducts.push({
-            nfeSerie,
-            originalSerie,
-            codigo,
-            nome,
-            qtd
-        });
-    });
-    
-    return derivedProducts;
-}
-
-// Função para validar antes de criar um novo derivado
-function validateDerivedCreation(originalNfeSerie, originalCode, requestedQty) {
-    // Verificar se já existem derivados deste produto
-    const existingDeriveds = getDerivedProductsInfo().filter(d => 
-        d.originalSerie === originalNfeSerie
-    );
-    
-    if (existingDeriveds.length > 0) {
-        const totalDerivedQty = existingDeriveds.reduce((sum, d) => sum + d.qtd, 0);
-        console.log(`Produto original ${originalNfeSerie} já tem ${existingDeriveds.length} derivado(s) com total de ${totalDerivedQty} unidades`);
-    }
-    
-    return true; // Permite a criação
-}
-
-// Adicionar aviso ao salvar se houver produtos derivados
-const originalSaveChangesViaAjax = saveChangesViaAjax;
-saveChangesViaAjax = function() {
-    if (hasDerivedProducts()) {
-        const derivedInfo = getDerivedProductsInfo();
-        console.log(`Salvando precificação com ${derivedInfo.length} produto(s) derivado(s)`);
-    }
-    originalSaveChangesViaAjax();
-};
-
-// Adicionar indicador visual ao carregar a página
-document.addEventListener('DOMContentLoaded', function() {
-    // Contar produtos derivados ao carregar
-    const derivedCount = document.querySelectorAll('#tabela-produtos tbody tr[data-derived="true"]').length;
-    if (derivedCount > 0) {
-        console.log(`Página carregada com ${derivedCount} produto(s) derivado(s)`);
-        
-        // Opcional: Adicionar um badge no header da tabela
-        const tableHeader = document.querySelector('#tabela-produtos');
-        if (tableHeader && !document.getElementById('derived-count-badge')) {
-            const badge = document.createElement('span');
-            badge.id = 'derived-count-badge';
-            badge.className = 'badge bg-purple ms-2';
-            badge.textContent = `${derivedCount} derivado(s)`;
-            
-            const cardHeader = tableHeader.closest('.card').querySelector('.card-header');
-            if (cardHeader) {
-                cardHeader.appendChild(badge);
-            }
-        }
     }
 });
