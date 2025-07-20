@@ -406,14 +406,12 @@ def process_spreadsheet_file(spreadsheet_file_storage, filename):
 def calculate_product_prices(products_raw, margin, commissions, shipping_costs):
     total_items_value = sum(item["valor_total"] for item in products_raw)
     if not products_raw: return []
-    # No caso de planilhas, freight_total etc. serão 0, pois já estão "no custo unitário"
-    # ou não são aplicáveis da mesma forma que numa NF-e.
-    # Garantimos que estes valores são recuperados do primeiro item para consistência,
-    # mas eles serão 0.0 para itens de planilha.
-    total_freight_nfe = products_raw[0].get('frete_total', 0.0)
-    total_insurance_nfe = products_raw[0].get('seguro_total', 0.0)
-    total_other_nfe = products_raw[0].get('outros_total', 0.0)
-    total_discount_nfe = products_raw[0].get('desc_total', 0.0)
+    
+    # Garante que as variáveis de despesa são floats, mesmo que venham como listas por algum erro
+    total_freight_nfe = float(products_raw[0].get('frete_total', 0.0))
+    total_insurance_nfe = float(products_raw[0].get('seguro_total', 0.0))
+    total_other_nfe = float(products_raw[0].get('outros_total', 0.0))
+    total_discount_nfe = float(products_raw[0].get('desc_total', 0.0))
 
     final_products = []
     for item in products_raw:
@@ -859,7 +857,7 @@ def delete_derived_product(prec_id):
     db = get_db()
     # Verifica se a precificação pertence ao usuário logado ou se é admin
     prec_record = db.execute(
-        "SELECT dados_json FROM precificacoes WHERE id = ? AND user_id = ?",
+        "SELECT dados_json, parametros_json FROM precificacoes WHERE id = ? AND user_id = ?", # MODIFICADO: Selecionar parametros_json
         (prec_id, current_user.id)
     ).fetchone()
 
@@ -867,7 +865,7 @@ def delete_derived_product(prec_id):
         # Se não for do usuário, verifica se o usuário é admin
         if getattr(current_user, 'is_admin', False):
             prec_record = db.execute(
-                "SELECT dados_json FROM precificacoes WHERE id = ?",
+                "SELECT dados_json, parametros_json FROM precificacoes WHERE id = ?", # MODIFICADO: Selecionar parametros_json
                 (prec_id,)
             ).fetchone()
         
@@ -875,6 +873,7 @@ def delete_derived_product(prec_id):
             return jsonify({'status': 'error', 'message': 'Precificação não encontrada ou acesso não permitido.'}), 403
 
     produtos_json = json.loads(prec_record['dados_json'])
+    parametros_json = json.loads(prec_record['parametros_json']) if prec_record['parametros_json'] else {} # NOVO: Carregar parâmetros
 
     # Verifica se é um produto derivado
     if not nfe_serie.startswith("DERIVADO_"):
@@ -902,19 +901,27 @@ def delete_derived_product(prec_id):
         if p.get("Série NF-e") == original_nfe_serie:
             # Devolve a quantidade ao produto original
             p['Qtd'] += float(qtd_to_return)
-            p['valor_total'] = p['Custo Unitário (R$)'] * p['Qtd']
+            # NÃO ATUALIZE 'valor_total' AQUI DIRETAMENTE, POIS calculate_product_prices FARÁ ISSO DE FORMA MAIS PRECISA
             original_found = True
             app.logger.info(f"Quantidade {qtd_to_return} devolvida ao produto original {original_nfe_serie}")
             break
 
     if not original_found:
         app.logger.warning(f"Produto original {original_nfe_serie} não encontrado para devolver quantidade")
+    
+    # NOVO: Recalcula todos os produtos após a alteração da quantidade do original
+    recalculated_products = calculate_product_prices(
+        produtos_json,
+        float(parametros_json.get("margem", "0").replace(',', '.')) / 100,
+        {p: float(parametros_json.get(f"comissao_{p}", "0").replace(',', '.')) / 100 for p in ['site', 'ml', 'shopee']},
+        {p: float(parametros_json.get(f"frete_{p}", "0").replace(',', '.')) for p in ['site', 'ml', 'shopee']}
+    )
 
     try:
-        # Salva os dados atualizados no banco de dados
+        # Salva os dados atualizados no banco de dados (agora usando recalculated_products)
         db.execute(
-            "UPDATE precificacoes SET dados_json = ? WHERE id = ?",
-            (json.dumps(produtos_json), prec_id)
+            "UPDATE precificacoes SET dados_json = ?, parametros_json = ? WHERE id = ?", # MODIFICADO: Salvar parâmetros também
+            (json.dumps(recalculated_products), json.dumps(parametros_json), prec_id)
         )
         db.commit()
         
