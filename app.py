@@ -841,6 +841,92 @@ def add_derived_product(prec_id):
     except Exception as e:
         app.logger.error(f"Erro ao salvar produto derivado na precificação {prec_id}: {e}", exc_info=True)
         return jsonify({'status': 'error', 'message': f'Erro interno ao salvar as alterações: {e}'}), 500
+
+@app.route('/api/precificacao/<int:prec_id>/delete_derived_product', methods=['POST'])
+@login_required
+def delete_derived_product(prec_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({'status': 'error', 'message': 'Nenhum dado recebido.'}), 400
+
+    nfe_serie = data.get('nfe_serie')
+    product_code = data.get('product_code')
+    qtd_to_return = data.get('qtd_to_return')
+
+    if not all([nfe_serie, product_code, qtd_to_return]):
+        return jsonify({'status': 'error', 'message': 'Dados incompletos para excluir produto derivado.'}), 400
+
+    db = get_db()
+    # Verifica se a precificação pertence ao usuário logado ou se é admin
+    prec_record = db.execute(
+        "SELECT dados_json FROM precificacoes WHERE id = ? AND user_id = ?",
+        (prec_id, current_user.id)
+    ).fetchone()
+
+    if not prec_record:
+        # Se não for do usuário, verifica se o usuário é admin
+        if getattr(current_user, 'is_admin', False):
+            prec_record = db.execute(
+                "SELECT dados_json FROM precificacoes WHERE id = ?",
+                (prec_id,)
+            ).fetchone()
+        
+        if not prec_record:
+            return jsonify({'status': 'error', 'message': 'Precificação não encontrada ou acesso não permitido.'}), 403
+
+    produtos_json = json.loads(prec_record['dados_json'])
+
+    # Verifica se é um produto derivado
+    if not nfe_serie.startswith("DERIVADO_"):
+        return jsonify({'status': 'error', 'message': 'Este produto não é um derivado.'}), 400
+
+    # Extrai a série NFe original
+    original_nfe_serie = nfe_serie.replace("DERIVADO_", "")
+    
+    # Encontra o produto derivado para remover
+    derived_product_index = -1
+    for i, p in enumerate(produtos_json):
+        if p.get("Série NF-e") == nfe_serie and p.get("Código") == product_code:
+            derived_product_index = i
+            break
+
+    if derived_product_index == -1:
+        return jsonify({'status': 'error', 'message': 'Produto derivado não encontrado.'}), 404
+
+    # Remove o produto derivado
+    removed_product = produtos_json.pop(derived_product_index)
+    
+    # Encontra o produto original para devolver a quantidade
+    original_found = False
+    for p in produtos_json:
+        if p.get("Série NF-e") == original_nfe_serie:
+            # Devolve a quantidade ao produto original
+            p['Qtd'] += float(qtd_to_return)
+            p['valor_total'] = p['Custo Unitário (R$)'] * p['Qtd']
+            original_found = True
+            app.logger.info(f"Quantidade {qtd_to_return} devolvida ao produto original {original_nfe_serie}")
+            break
+
+    if not original_found:
+        app.logger.warning(f"Produto original {original_nfe_serie} não encontrado para devolver quantidade")
+
+    try:
+        # Salva os dados atualizados no banco de dados
+        db.execute(
+            "UPDATE precificacoes SET dados_json = ? WHERE id = ?",
+            (json.dumps(produtos_json), prec_id)
+        )
+        db.commit()
+        
+        return jsonify({
+            'status': 'success', 
+            'message': 'Produto derivado excluído e quantidade devolvida ao produto original!',
+            'original_found': original_found
+        })
+
+    except Exception as e:
+        app.logger.error(f"Erro ao excluir produto derivado na precificação {prec_id}: {e}", exc_info=True)
+        return jsonify({'status': 'error', 'message': f'Erro interno ao salvar as alterações: {e}'}), 500
     
 # --- ROTAS DE DOWNLOAD DE MODELOS ---
 @app.route('/download/modelo-excel')

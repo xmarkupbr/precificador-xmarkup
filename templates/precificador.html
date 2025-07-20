@@ -143,28 +143,59 @@
                         </thead>
                         <tbody>
                             {% for row in produtos %}
-                            <tr data-valor-total="{{ row['valor_total'] }}" data-impostos="{{ row['impostos'] }}" data-frete-total="{{ row['frete_total'] }}" data-seguro-total="{{ row['seguro_total'] }}" data-outros-total="{{ row['outros_total'] }}" data-desc-total="{{ row['desc_total'] }}" data-custo-unitario="{{ row['Custo Unitário (R$)'] }}">
-                                <td>{{ row["Série NF-e"] }}</td>
-                                <td><input name="codigo[]" value="{{ row['Código'] }}" class="form-control form-control-sm editable-cell" style="min-width:110px;"></td>
-                                <td><input name="nome[]" value="{{ row['Nome'] }}" class="form-control form-control-sm editable-cell" style="min-width:240px;"></td>
-                                <td><input name="qtd[]" value="{{ row['Qtd']|int }}" type="number" min="1" class="form-control form-control-sm editable-cell qtd-input" required></td>
+                            <tr data-valor-total="{{ row['valor_total'] }}" 
+                                data-impostos="{{ row['impostos'] }}" 
+                                data-frete-total="{{ row['frete_total'] }}" 
+                                data-seguro-total="{{ row['seguro_total'] }}" 
+                                data-outros-total="{{ row['outros_total'] }}" 
+                                data-desc-total="{{ row['desc_total'] }}" 
+                                data-custo-unitario="{{ row['Custo Unitário (R$)'] }}"
+                                {% if row["Série NF-e"].startswith("DERIVADO_") %}data-derived="true"{% endif %}>
+                                
+                                <td>
+                                    {{ row["Série NF-e"] }}
+                                    {% if row["Série NF-e"].startswith("DERIVADO_") %}
+                                        <span class="badge badge-derived" title="Produto derivado">
+                                            <span class="mdi mdi-call-split"></span> Derivado
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <input name="codigo[]" value="{{ row['Código'] }}" class="form-control form-control-sm editable-cell" style="min-width:110px;">
+                                </td>
+                                <td>
+                                    <input name="nome[]" value="{{ row['Nome'] }}" class="form-control form-control-sm editable-cell" style="min-width:240px;">
+                                </td>
+                                <td>
+                                    <input name="qtd[]" value="{{ row['Qtd']|int }}" type="number" min="1" class="form-control form-control-sm editable-cell qtd-input" required>
+                                </td>
                                 <td class="cell-custo-unitario">{{ row["Custo Unitário (R$)"]|brl }}</td>
                                 <td class="cell-preco-site"><span>{{ row["Preço Venda Site (R$)"]|brl }}</span></td>
                                 <td class="cell-preco-ml"><span>{{ row["Mercado Livre (R$)"]|brl }}</span></td>
                                 <td class="cell-preco-shopee"><span>{{ row["Shopee (R$)"]|brl }}</span></td>
                                 <td class="text-center">
-                                    <button type="button" class="btn btn-sm btn-outline-danger btn-excluir-item" title="Excluir item">
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-excluir-item" 
+                                            title="{% if row["Série NF-e"].startswith("DERIVADO_") %}Excluir e devolver quantidade ao original{% else %}Excluir item{% endif %}">
                                         <span class="mdi mdi-trash-can-outline"></span>
                                     </button>
                                 </td>
-                                <td class="text-center"> <button type="button" class="btn btn-sm btn-outline-info btn-criar-derivado" title="Criar produto derivado"
-                                            data-bs-toggle="modal" data-bs-target="#criarDerivadoModal"
+                                <td class="text-center">
+                                    {% if not row["Série NF-e"].startswith("DERIVADO_") %}
+                                    <button type="button" class="btn btn-sm btn-outline-info btn-criar-derivado" 
+                                            title="Criar produto derivado"
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#criarDerivadoModal"
                                             data-nfe-serie="{{ row['Série NF-e'] }}"
                                             data-codigo-original="{{ row['Código'] }}"
                                             data-nome-original="{{ row['Nome'] }}"
                                             data-qtd-original="{{ row['Qtd']|int }}">
                                         <span class="mdi mdi-call-split"></span>
                                     </button>
+                                    {% else %}
+                                    <span class="text-muted" title="Produtos derivados não podem gerar outros derivados">
+                                        <span class="mdi mdi-minus"></span>
+                                    </span>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}
