@@ -28,9 +28,91 @@
                 {% endif %}
                 <form method="post" action="{{ url_for('precificador') }}" enctype="multipart/form-data" id="form-param">
                     <fieldset {% if limite_atingido %}disabled{% endif %}>
-                        <div class="mb-4">
-                            <label class="form-label fw-semibold">Margem de Lucro (%)</label>
-                            <input type="number" step="any" min="0" name="margem" class="form-control" required style="max-width:200px;" value="{{ parametros.get('margem', '') | input_num }}">
+                        
+                        <!-- NOVA SEÇÃO: Escolha do Método de Precificação -->
+                        <div class="mb-4 p-4 bg-light rounded">
+                            <h5 class="fw-semibold mb-3">
+                                <span class="mdi mdi-calculator-variant me-2"></span>
+                                Método de Precificação
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="pricing_method" id="simple_margin_method" value="simple_margin" 
+                                               {% if parametros.get('pricing_method', 'simple_margin') == 'simple_margin' %}checked{% endif %}>
+                                        <label class="form-check-label" for="simple_margin_method">
+                                            <strong>Margem de Lucro Simples</strong>
+                                            <p class="text-muted small mb-0">Adiciona uma margem percentual sobre o custo total</p>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="pricing_method" id="contribution_margin_method" value="contribution_margin"
+                                               {% if parametros.get('pricing_method') == 'contribution_margin' %}checked{% endif %}>
+                                        <label class="form-check-label" for="contribution_margin_method">
+                                            <strong>Margem de Contribuição</strong>
+                                            <p class="text-muted small mb-0">Considera custos fixos e variáveis para definir o preço ideal</p>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Parâmetros para Margem Simples -->
+                        <div id="simple_margin_params" class="pricing-params" style="{% if parametros.get('pricing_method') == 'contribution_margin' %}display: none;{% endif %}">
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">
+                                    <span class="mdi mdi-percent me-1"></span>
+                                    Margem de Lucro (%)
+                                </label>
+                                <input type="number" step="any" min="0" name="margem" class="form-control" style="max-width:200px;" value="{{ parametros.get('margem', '') | input_num }}">
+                                <small class="form-text text-muted">Percentual de lucro desejado sobre o custo total</small>
+                            </div>
+                        </div>
+
+                        <!-- Parâmetros para Margem de Contribuição -->
+                        <div id="contribution_margin_params" class="pricing-params" style="{% if parametros.get('pricing_method', 'simple_margin') == 'simple_margin' %}display: none;{% endif %}">
+                            <div class="alert alert-info">
+                                <h6 class="alert-heading">
+                                    <span class="mdi mdi-information-outline me-1"></span>
+                                    Como funciona a Margem de Contribuição?
+                                </h6>
+                                <p class="mb-0 small">
+                                    Este método considera seus custos fixos mensais (aluguel, salários, etc.) e os distribui entre suas vendas. 
+                                    O preço final garantirá que cada venda contribua para cobrir tanto os custos variáveis quanto uma parte dos custos fixos.
+                                </p>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        <span class="mdi mdi-percent me-1"></span>
+                                        Margem de Contribuição (%)
+                                    </label>
+                                    <input type="number" step="any" min="0" max="100" name="contribution_margin" class="form-control" 
+                                           value="{{ parametros.get('contribution_margin', 30) | input_num }}">
+                                    <small class="form-text text-muted">Percentual do preço que cobrirá custos fixos e lucro</small>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        <span class="mdi mdi-currency-usd me-1"></span>
+                                        Custos Fixos Mensais (R$)
+                                    </label>
+                                    <input type="number" step="any" min="0" name="fixed_costs" class="form-control" 
+                                           value="{{ parametros.get('fixed_costs', 0) | input_num }}">
+                                    <small class="form-text text-muted">Aluguel, salários, etc.</small>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        <span class="mdi mdi-package-variant me-1"></span>
+                                        Vendas Mensais Estimadas (un)
+                                    </label>
+                                    <input type="number" min="1" name="monthly_sales_qty" class="form-control" 
+                                           value="{{ parametros.get('monthly_sales_qty', 100) }}">
+                                    <small class="form-text text-muted">Quantidade total de produtos vendidos/mês</small>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="comissoes-fretes-section">
@@ -109,9 +191,9 @@
                         <div class="info-item"><span class="mdi mdi-currency-usd me-2"></span><strong>Custo Total:</strong><span id="resumo-custo-total" class="ms-auto">{{ resumo.custo_total|brl }}</span></div>
                     </div>
                     <div class="resumo-marketplaces mt-2">
-                        <div class="marketplace-card site"><div class="marketplace-header"><h6>Meu Site</h6></div><div class="marketplace-stats"><div class="stat-item"><span class="stat-label">Total Venda:</span><span class="stat-value total">{{ resumo["Preço Venda Site (R$)_total"]|brl }}</span></div><div class="stat-item"><span class="stat-label">Preço Médio:</span><span class="stat-value">{{ resumo["Preço Venda Site (R$)_media"]|brl }}</span></div></div></div>
-                        <div class="marketplace-card ml"><div class="marketplace-header"><h6>Mercado Livre</h6></div><div class="marketplace-stats"><div class="stat-item"><span class="stat-label">Total Venda:</span><span class="stat-value total">{{ resumo["Mercado Livre (R$)_total"]|brl }}</span></div><div class="stat-item"><span class="stat-label">Preço Médio:</span><span class="stat-value">{{ resumo["Mercado Livre (R$)_media"]|brl }}</span></div></div></div>
-                        <div class="marketplace-card shopee"><div class="marketplace-header"><h6>Shopee</h6></div><div class="marketplace-stats"><div class="stat-item"><span class="stat-label">Total Venda:</span><span class="stat-value total">{{ resumo["Shopee (R$)_total"]|brl }}</span></div><div class="stat-item"><span class="stat-label">Preço Médio:</span><span class="stat-value">{{ resumo["Shopee (R$)_media"]|brl }}</span></div></div></div>
+                        <div class="marketplace-card site"><div class="marketplace-header"><h6>Meu Site</h6></div><div class="marketplace-stats"><div class="stat-item"><span class="stat-label">Total Venda:</span><span class="stat-value total" id="resumo-site-total">{{ resumo["Preço Venda Site (R$)_total"]|brl }}</span></div><div class="stat-item"><span class="stat-label">Preço Médio:</span><span class="stat-value" id="resumo-site-media">{{ resumo["Preço Venda Site (R$)_media"]|brl }}</span></div></div></div>
+                        <div class="marketplace-card ml"><div class="marketplace-header"><h6>Mercado Livre</h6></div><div class="marketplace-stats"><div class="stat-item"><span class="stat-label">Total Venda:</span><span class="stat-value total" id="resumo-ml-total">{{ resumo["Mercado Livre (R$)_total"]|brl }}</span></div><div class="stat-item"><span class="stat-label">Preço Médio:</span><span class="stat-value" id="resumo-ml-media">{{ resumo["Mercado Livre (R$)_media"]|brl }}</span></div></div></div>
+                        <div class="marketplace-card shopee"><div class="marketplace-header"><h6>Shopee</h6></div><div class="marketplace-stats"><div class="stat-item"><span class="stat-label">Total Venda:</span><span class="stat-value total" id="resumo-shopee-total">{{ resumo["Shopee (R$)_total"]|brl }}</span></div><div class="stat-item"><span class="stat-label">Preço Médio:</span><span class="stat-value" id="resumo-shopee-media">{{ resumo["Shopee (R$)_media"]|brl }}</span></div></div></div>
                     </div>
                 </div>
             </div>
@@ -185,10 +267,39 @@
             <div class="card mb-3">
                 <div class="card-header fw-bold">Parâmetros de Cálculo</div>
                 <div class="card-body">
+                    <!-- Seletor de Método -->
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Margem de Lucro (%)</label>
-                        <input type="number" step="any" min="0" name="margem" class="form-control param-global" required value="{{ parametros.get('margem', '') | input_num }}">
+                        <label class="form-label fw-semibold">Método de Precificação</label>
+                        <select class="form-select" id="pricing_method_selector" name="pricing_method">
+                            <option value="simple_margin" {% if parametros.get('pricing_method', 'simple_margin') == 'simple_margin' %}selected{% endif %}>Margem Simples</option>
+                            <option value="contribution_margin" {% if parametros.get('pricing_method') == 'contribution_margin' %}selected{% endif %}>Margem de Contribuição</option>
+                        </select>
                     </div>
+                    
+                    <!-- Parâmetros Margem Simples -->
+                    <div id="sidebar_simple_margin" class="method-params" style="{% if parametros.get('pricing_method') == 'contribution_margin' %}display: none;{% endif %}">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Margem de Lucro (%)</label>
+                            <input type="number" step="any" min="0" name="margem" class="form-control param-global" required value="{{ parametros.get('margem', '') | input_num }}">
+                        </div>
+                    </div>
+                    
+                    <!-- Parâmetros Margem de Contribuição -->
+                    <div id="sidebar_contribution_margin" class="method-params" style="{% if parametros.get('pricing_method', 'simple_margin') == 'simple_margin' %}display: none;{% endif %}">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Margem Contribuição (%)</label>
+                            <input type="number" step="any" min="0" max="100" name="contribution_margin" class="form-control param-global" value="{{ parametros.get('contribution_margin', 30) | input_num }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Custos Fixos (R$)</label>
+                            <input type="number" step="any" min="0" name="fixed_costs" class="form-control param-global" value="{{ parametros.get('fixed_costs', 0) | input_num }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Vendas/Mês (un)</label>
+                            <input type="number" min="1" name="monthly_sales_qty" class="form-control param-global" value="{{ parametros.get('monthly_sales_qty', 100) }}">
+                        </div>
+                    </div>
+                    
                     <hr>
                     <h6 class="mb-3">Plataformas</h6>
                     {% for p, logo in [('site', 'web'), ('ml', 'shopping-outline'), ('shopee', 'shopping')] %}
@@ -211,6 +322,50 @@
     {% endif %}
 </div>
 
+<script>
+// Script para alternar entre os métodos de precificação
+document.addEventListener('DOMContentLoaded', function() {
+    // Para o formulário inicial
+    const methodRadios = document.querySelectorAll('input[name="pricing_method"]');
+    const simpleParams = document.getElementById('simple_margin_params');
+    const contribParams = document.getElementById('contribution_margin_params');
+    
+    if (methodRadios.length > 0) {
+        methodRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'simple_margin') {
+                    simpleParams.style.display = 'block';
+                    contribParams.style.display = 'none';
+                } else {
+                    simpleParams.style.display = 'none';
+                    contribParams.style.display = 'block';
+                }
+            });
+        });
+    }
+    
+    // Para a sidebar (página de resultados)
+    const methodSelector = document.getElementById('pricing_method_selector');
+    const sidebarSimple = document.getElementById('sidebar_simple_margin');
+    const sidebarContrib = document.getElementById('sidebar_contribution_margin');
+    
+    if (methodSelector) {
+        methodSelector.addEventListener('change', function() {
+            if (this.value === 'simple_margin') {
+                sidebarSimple.style.display = 'block';
+                sidebarContrib.style.display = 'none';
+            } else {
+                sidebarSimple.style.display = 'none';
+                sidebarContrib.style.display = 'block';
+            }
+            // Dispara o recálculo quando mudar o método
+            if (typeof recalculateAllRows === 'function') {
+                recalculateAllRows();
+            }
+        });
+    }
+});
+</script>
 
 {% endblock %}
 

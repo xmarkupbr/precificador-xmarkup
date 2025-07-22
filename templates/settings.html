@@ -16,9 +16,90 @@
                     {% include 'partials/_flash_messages.html' %}
 
                     <form method="POST" action="{{ url_for('settings') }}">
-                        <div class="mb-4">
-                            <label for="default_margem" class="form-label fw-semibold">Margem de Lucro Padrão (%)</label>
-                            <input type="number" step="any" min="0" name="default_margem" class="form-control" value="{{ user_settings.default_margem | input_num }}" style="max-width: 200px;">
+                        <!-- Seção: Método de Precificação Padrão -->
+                        <div class="mb-4 p-4 bg-light rounded">
+                            <h5 class="mb-3">
+                                <span class="mdi mdi-calculator-variant me-2"></span>
+                                Método de Precificação Padrão
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="default_pricing_method" id="default_simple_margin" value="simple_margin" 
+                                               {% if user_settings.default_pricing_method == 'simple_margin' or not user_settings.default_pricing_method %}checked{% endif %}>
+                                        <label class="form-check-label" for="default_simple_margin">
+                                            <strong>Margem de Lucro Simples</strong>
+                                            <p class="text-muted small mb-0">Adiciona uma margem percentual sobre o custo total</p>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="default_pricing_method" id="default_contribution_margin" value="contribution_margin"
+                                               {% if user_settings.default_pricing_method == 'contribution_margin' %}checked{% endif %}>
+                                        <label class="form-check-label" for="default_contribution_margin">
+                                            <strong>Margem de Contribuição</strong>
+                                            <p class="text-muted small mb-0">Considera custos fixos e variáveis para definir o preço ideal</p>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Parâmetros para Margem Simples -->
+                        <div id="simple_margin_config" class="method-config" style="{% if user_settings.default_pricing_method == 'contribution_margin' %}display: none;{% endif %}">
+                            <h5 class="mb-3">Configurações de Margem Simples</h5>
+                            <div class="mb-4">
+                                <label for="default_margem" class="form-label fw-semibold">Margem de Lucro Padrão (%)</label>
+                                <input type="number" step="any" min="0" name="default_margem" class="form-control" value="{{ user_settings.default_margem | input_num }}" style="max-width: 200px;">
+                                <small class="form-text text-muted">Percentual de lucro sobre o custo total</small>
+                            </div>
+                        </div>
+
+                        <!-- Parâmetros para Margem de Contribuição -->
+                        <div id="contribution_margin_config" class="method-config" style="{% if user_settings.default_pricing_method != 'contribution_margin' %}display: none;{% endif %}">
+                            <h5 class="mb-3">Configurações de Margem de Contribuição</h5>
+                            <div class="alert alert-info">
+                                <h6 class="alert-heading">
+                                    <span class="mdi mdi-information-outline me-1"></span>
+                                    O que é Margem de Contribuição?
+                                </h6>
+                                <p class="mb-0 small">
+                                    A Margem de Contribuição é o percentual do preço de venda que sobra após pagar os custos variáveis 
+                                    (produto, impostos, comissões). Esta sobra é usada para cobrir os custos fixos (aluguel, salários, etc.) 
+                                    e gerar lucro. Por exemplo, com uma MC de 30%, a cada R$ 100 vendidos, R$ 30 contribuem para custos fixos e lucro.
+                                </p>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-4 mb-4">
+                                    <label for="default_contribution_margin" class="form-label fw-semibold">
+                                        <span class="mdi mdi-percent me-1"></span>
+                                        Margem de Contribuição Padrão (%)
+                                    </label>
+                                    <input type="number" step="any" min="0" max="100" name="default_contribution_margin" 
+                                           class="form-control" value="{{ user_settings.default_contribution_margin | input_num }}">
+                                    <small class="form-text text-muted">Recomendado: 25% a 40%</small>
+                                </div>
+                                <div class="col-md-4 mb-4">
+                                    <label for="default_fixed_costs" class="form-label fw-semibold">
+                                        <span class="mdi mdi-currency-usd me-1"></span>
+                                        Custos Fixos Mensais (R$)
+                                    </label>
+                                    <input type="number" step="any" min="0" name="default_fixed_costs" 
+                                           class="form-control" value="{{ user_settings.default_fixed_costs | input_num }}">
+                                    <small class="form-text text-muted">Aluguel, salários, despesas fixas</small>
+                                </div>
+                                <div class="col-md-4 mb-4">
+                                    <label for="default_monthly_sales_qty" class="form-label fw-semibold">
+                                        <span class="mdi mdi-package-variant me-1"></span>
+                                        Vendas Mensais Estimadas (un)
+                                    </label>
+                                    <input type="number" min="1" name="default_monthly_sales_qty" 
+                                           class="form-control" value="{{ user_settings.default_monthly_sales_qty }}">
+                                    <small class="form-text text-muted">Total de produtos vendidos por mês</small>
+                                </div>
+                            </div>
                         </div>
 
                         <hr>
@@ -81,4 +162,25 @@
         </div>
     </div>
 </div>
+
+<script>
+// Script para alternar entre as configurações dos métodos
+document.addEventListener('DOMContentLoaded', function() {
+    const methodRadios = document.querySelectorAll('input[name="default_pricing_method"]');
+    const simpleConfig = document.getElementById('simple_margin_config');
+    const contribConfig = document.getElementById('contribution_margin_config');
+    
+    methodRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'simple_margin') {
+                simpleConfig.style.display = 'block';
+                contribConfig.style.display = 'none';
+            } else {
+                simpleConfig.style.display = 'none';
+                contribConfig.style.display = 'block';
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

@@ -131,7 +131,9 @@ def format_for_input_filter(value):
 
 # --- MODELO DE UTILIZADOR ---
 class User(UserMixin):
-    def __init__(self, id, email, password, nome_completo, is_admin=False, status_cliente='Safira', precificacao_limit=5, limit_reset_date=None):
+    def __init__(self, id, email, password, nome_completo, is_admin=False, status_cliente='Safira', 
+                 precificacao_limit=5, limit_reset_date=None, default_pricing_method='simple_margin',
+                 default_contribution_margin=30.0, default_fixed_costs=0.0, default_monthly_sales_qty=100):
         self.id = id
         self.email = email
         self.password = password
@@ -140,6 +142,10 @@ class User(UserMixin):
         self.status_cliente = status_cliente
         self.precificacao_limit = precificacao_limit
         self.limit_reset_date = limit_reset_date
+        self.default_pricing_method = default_pricing_method
+        self.default_contribution_margin = default_contribution_margin
+        self.default_fixed_costs = default_fixed_costs
+        self.default_monthly_sales_qty = default_monthly_sales_qty
 
     def get_reset_token(self):
         s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
@@ -169,7 +175,11 @@ def load_user(user_id):
             is_admin=user_data['is_admin'] if 'is_admin' in keys else False,
             status_cliente=user_data['status_cliente'] if 'status_cliente' in keys else 'Safira',
             precificacao_limit=user_data['precificacao_limit'] if 'precificacao_limit' in keys else 5,
-            limit_reset_date=user_data['limit_reset_date'] if 'limit_reset_date' in keys else None
+            limit_reset_date=user_data['limit_reset_date'] if 'limit_reset_date' in keys else None,
+            default_pricing_method=user_data['default_pricing_method'] if 'default_pricing_method' in keys else 'simple_margin',
+            default_contribution_margin=user_data['default_contribution_margin'] if 'default_contribution_margin' in keys else 30.0,
+            default_fixed_costs=user_data['default_fixed_costs'] if 'default_fixed_costs' in keys else 0.0,
+            default_monthly_sales_qty=user_data['default_monthly_sales_qty'] if 'default_monthly_sales_qty' in keys else 100
         )
     return None
 
@@ -403,7 +413,89 @@ def process_spreadsheet_file(spreadsheet_file_storage, filename):
 
     return products_data
 
-def calculate_product_prices(products_raw, margin, commissions, shipping_costs):
+def calculate_contribution_margin_prices(products_raw, contribution_margin, fixed_costs, monthly_sales_qty, commissions, shipping_costs):
+    """
+    Calcula preços usando o método de Margem de Contribuição.
+    
+    Margem de Contribuição = (Preço de Venda - Custos Variáveis) / Preço de Venda
+    Preço de Venda = (Custos Variáveis + Rateio de Custos Fixos) / (1 - Margem de Contribuição)
+    """
+    if not products_raw or monthly_sales_qty <= 0:
+        return []
+    
+    # Calcula o rateio de custos fixos por unidade
+    fixed_cost_per_unit = fixed_costs / monthly_sales_qty if monthly_sales_qty > 0 else 0
+    
+    total_items_value = sum(item["valor_total"] for item in products_raw)
+    
+    # Garante que as variáveis de despesa são floats
+    total_freight_nfe = float(products_raw[0].get('frete_total', 0.0))
+    total_insurance_nfe = float(products_raw[0].get('seguro_total', 0.0))
+    total_other_nfe = float(products_raw[0].get('outros_total', 0.0))
+    total_discount_nfe = float(products_raw[0].get('desc_total', 0.0))
+
+    final_products = []
+    for item in products_raw:
+        # Lógica para determinar o imposto a ser considerado no custo
+        impostos_to_use = item["impostos"]
+        is_spreadsheet_source = "PLANILHA_" in item["Série NF-e"]
+        
+        # Somente aplica a regra se for um XML e tiver os dados de comparação
+        if not is_spreadsheet_source and 'total_nfe_value_from_xml' in item and 'sum_vProd_from_xml_items' in item:
+            nfe_total_value = item['total_nfe_value_from_xml']
+            sum_vProd_nfe = item['sum_vProd_from_xml_items']
+            
+            # Usar uma pequena tolerância para comparação de floats
+            if abs(nfe_total_value - sum_vProd_nfe) < 0.01: # Tolerância de R$ 0.01
+                impostos_to_use = 0.0 # Impostos não serão adicionados
+        
+        # Se for um item de planilha, o "Custo Unitário (R$)" já é o custo final
+        if is_spreadsheet_source:
+            unit_cost = item["Custo Unitário (R$)"]
+        else: # É um item de XML
+            proportion = item["valor_total"] / total_items_value if total_items_value > 0 else 0
+            item_freight = proportion * total_freight_nfe
+            item_insurance = proportion * total_insurance_nfe
+            item_other = proportion * total_other_nfe
+            item_discount = proportion * total_discount_nfe
+            
+            # Calcula o custo total do item
+            total_cost = (item["valor_total"] + impostos_to_use + item_freight + item_insurance + item_other - item_discount)
+            unit_cost = total_cost / item["Qtd"] if item["Qtd"] > 0 else 0
+        
+        # Calcula o preço usando Margem de Contribuição
+        # Preço = (Custo Variável + Custo Fixo Unitário) / (1 - MC%)
+        prices = {}
+        for channel, commission in commissions.items():
+            # Custo variável total = custo unitário + frete do canal
+            variable_cost = unit_cost + shipping_costs.get(channel, 0)
+            
+            # Adiciona o custo fixo unitário
+            total_cost_with_fixed = variable_cost + fixed_cost_per_unit
+            
+            # MC efetiva = MC desejada - comissão do canal
+            effective_contribution_margin = contribution_margin - commission
+            
+            if effective_contribution_margin <= 0 or effective_contribution_margin >= 1:
+                # Se a margem efetiva for inválida, usa um preço mínimo
+                prices[channel] = total_cost_with_fixed * 2  # Dobra o custo como fallback
+            else:
+                prices[channel] = total_cost_with_fixed / (1 - effective_contribution_margin)
+        
+        # Atualiza o custo unitário e os preços de venda no item
+        item["Custo Unitário (R$)"] = unit_cost
+        item["Preço Venda Site (R$)"] = prices.get("site", 0)
+        item["Mercado Livre (R$)"] = prices.get("ml", 0)
+        item["Shopee (R$)"] = prices.get("shopee", 0)
+        
+        final_products.append(item)
+    
+    return final_products
+
+def calculate_simple_margin_prices(products_raw, margin, commissions, shipping_costs):
+    """
+    Método original de cálculo usando margem de lucro simples.
+    """
     total_items_value = sum(item["valor_total"] for item in products_raw)
     if not products_raw: return []
     
@@ -463,6 +555,26 @@ def calculate_product_prices(products_raw, margin, commissions, shipping_costs):
         final_products.append(item)
     return final_products
 
+def calculate_product_prices(products_raw, margin, commissions, shipping_costs, pricing_method='simple_margin', 
+                           contribution_margin=None, fixed_costs=None, monthly_sales_qty=None):
+    """
+    Função principal que decide qual método de cálculo usar baseado no pricing_method.
+    """
+    if pricing_method == 'contribution_margin':
+        # Usa o novo método de Margem de Contribuição
+        if contribution_margin is None or fixed_costs is None or monthly_sales_qty is None:
+            # Se faltar algum parâmetro, usa valores padrão
+            contribution_margin = contribution_margin or 0.3  # 30% padrão
+            fixed_costs = fixed_costs or 0
+            monthly_sales_qty = monthly_sales_qty or 100
+        
+        return calculate_contribution_margin_prices(
+            products_raw, contribution_margin, fixed_costs, 
+            monthly_sales_qty, commissions, shipping_costs
+        )
+    else:
+        # Usa o método tradicional de margem simples
+        return calculate_simple_margin_prices(products_raw, margin, commissions, shipping_costs)
 
 def generate_summary(products):
     if not products: return {}
@@ -513,7 +625,11 @@ def login():
             is_admin=user_data['is_admin'] if 'is_admin' in keys else False,
             status_cliente=user_data['status_cliente'] if 'status_cliente' in keys else 'Safira',
             precificacao_limit=user_data['precificacao_limit'] if 'precificacao_limit' in keys else 5,
-            limit_reset_date=user_data['limit_reset_date'] if 'limit_reset_date' in keys else None
+            limit_reset_date=user_data['limit_reset_date'] if 'limit_reset_date' in keys else None,
+            default_pricing_method=user_data['default_pricing_method'] if 'default_pricing_method' in keys else 'simple_margin',
+            default_contribution_margin=user_data['default_contribution_margin'] if 'default_contribution_margin' in keys else 30.0,
+            default_fixed_costs=user_data['default_fixed_costs'] if 'default_fixed_costs' in keys else 0.0,
+            default_monthly_sales_qty=user_data['default_monthly_sales_qty'] if 'default_monthly_sales_qty' in keys else 100
         )
         login_user(user)
         return redirect(url_for('dashboard'))
@@ -648,9 +764,28 @@ def precificador():
                 return redirect(url_for('precificador'))
 
             plataformas = ['site', 'ml', 'shopee']
-            margem = float(form_params.get("margem", "0").replace(',', '.')) / 100
+            
+            # Obtém o método de precificação escolhido
+            pricing_method = form_params.get("pricing_method", "simple_margin")
+            
+            # Parâmetros comuns
             comissoes = {p: float(form_params.get(f"comissao_{p}", "0").replace(',', '.')) / 100 for p in plataformas}
             fretes = {p: float(form_params.get(f"frete_{p}", "0").replace(',', '.')) for p in plataformas}
+            
+            # Parâmetros específicos por método
+            if pricing_method == "contribution_margin":
+                # Margem de Contribuição
+                contribution_margin = float(form_params.get("contribution_margin", "30").replace(',', '.')) / 100
+                fixed_costs = float(form_params.get("fixed_costs", "0").replace(',', '.'))
+                monthly_sales_qty = int(form_params.get("monthly_sales_qty", "100"))
+                margin = None  # Não usado neste método
+            else:
+                # Margem Simples
+                margem = float(form_params.get("margem", "0").replace(',', '.')) / 100
+                contribution_margin = None
+                fixed_costs = None
+                monthly_sales_qty = None
+                margin = margem
             
             raw_products = []
             processed_files = 0
@@ -703,7 +838,17 @@ def precificador():
                 flash("Nenhum produto válido foi encontrado nos arquivos processados. Verifique se os arquivos não estão vazios ou corrompidos, e se as colunas estão corretas.", "danger")
                 return redirect(url_for('precificador'))
 
-            final_products = calculate_product_prices(raw_products, margem, comissoes, fretes)
+            # Chama a função de cálculo com os parâmetros corretos
+            final_products = calculate_product_prices(
+                raw_products, 
+                margin=margin,
+                commissions=comissoes, 
+                shipping_costs=fretes,
+                pricing_method=pricing_method,
+                contribution_margin=contribution_margin,
+                fixed_costs=fixed_costs,
+                monthly_sales_qty=monthly_sales_qty
+            )
             
             dados_json = json.dumps(final_products)
             parametros_json = json.dumps(form_params)
@@ -735,6 +880,7 @@ def precificador():
         'frete_ml': user_settings['default_frete_ml'],
         'comissao_shopee': user_settings['default_comissao_shopee'],
         'frete_shopee': user_settings['default_frete_shopee'],
+        'contribution_margin': user_settings['default_contribution_margin'],
     }
     return render_template(
         "precificador.html", 
@@ -744,6 +890,69 @@ def precificador():
         limite_total=current_user.precificacao_limit
     )
     
+# --- FUNÇÕES AUXILIARES PARA TEMPLATES ---
+def create_excel_template():
+    """Cria o arquivo modelo Excel"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Produtos"
+    
+    # Cabeçalhos
+    headers = ['Código', 'Nome', 'Qtd', 'Custo Unitário (R$)']
+    ws.append(headers)
+    
+    # Estilos
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="7e41c4", end_color="7e41c4", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), 
+                        top=Side(style='thin'), bottom=Side(style='thin'))
+    
+    # Aplicar estilos aos cabeçalhos
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = thin_border
+    
+    # Adicionar dados de exemplo
+    examples = [
+        ['001', 'Produto Exemplo 1', 10, 25.50],
+        ['002', 'Produto Exemplo 2', 5, 40.00],
+        ['003', 'Produto Exemplo 3', 15, 15.75],
+    ]
+    
+    for row_data in examples:
+        ws.append(row_data)
+    
+    # Ajustar largura das colunas
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = (max_length + 2) * 1.2
+        ws.column_dimensions[column_letter].width = adjusted_width
+    
+    return wb
+
+def create_csv_template():
+    """Cria o DataFrame modelo para CSV"""
+    data = {
+        'Código': ['001', '002', '003'],
+        'Nome': ['Produto Exemplo 1', 'Produto Exemplo 2', 'Produto Exemplo 3'],
+        'Qtd': [10, 5, 15],
+        'Custo Unitário (R$)': [25.5, 40.0, 15.75]
+    }
+    return pd.DataFrame(data)
+
 # --- ROTAS DE DOWNLOAD DE MODELOS ---
 @app.route('/download/modelo-excel')
 @login_required
@@ -759,26 +968,10 @@ def download_modelo_excel():
             # Criar diretório se não existir
             os.makedirs(os.path.dirname(template_path), exist_ok=True)
             
-            # Importar e criar o arquivo
-            try:
-                # create_excel_template() precisa estar definida, assumindo que está
-                from openpyxl import Workbook
-                from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-                from openpyxl.utils.dataframe import dataframe_to_rows
-                wb = create_excel_template() # Chamar a função original se for definida em outro lugar
-                wb.save(template_path)
-                app.logger.info(f"Arquivo modelo Excel criado com sucesso em {template_path}")
-                
-            except Exception as ce:
-                app.logger.error(f"Erro ao criar arquivo modelo Excel: {ce}")
-                flash("Erro ao criar arquivo modelo Excel.", "danger")
-                return redirect(url_for('precificador'))
-        
-        # Verificar novamente se o arquivo existe após criação
-        if not os.path.exists(template_path):
-            app.logger.error(f"Arquivo modelo Excel ainda não existe após tentativa de criação: {template_path}")
-            flash("Erro: não foi possível criar o arquivo modelo Excel.", "danger")
-            return redirect(url_for('precificador'))
+            # Criar o arquivo
+            wb = create_excel_template()
+            wb.save(template_path)
+            app.logger.info(f"Arquivo modelo Excel criado com sucesso em {template_path}")
         
         # Fazer download do arquivo
         return send_file(
@@ -807,23 +1000,10 @@ def download_modelo_csv():
             # Criar diretório se não existir
             os.makedirs(os.path.dirname(template_path), exist_ok=True)
             
-            # Importar e criar o arquivo
-            try:
-                # create_csv_template() precisa estar definida, assumindo que está
-                df = create_csv_template() # Chamar a função original se for definida em outro lugar
-                df.to_csv(template_path, index=False, encoding='utf-8')
-                app.logger.info(f"Arquivo modelo CSV criado com sucesso em {template_path}")
-                
-            except Exception as ce:
-                app.logger.error(f"Erro ao criar arquivo modelo CSV: {ce}")
-                flash("Erro ao criar arquivo modelo CSV.", "danger")
-                return redirect(url_for('precificador'))
-        
-        # Verificar novamente se o arquivo existe após criação
-        if not os.path.exists(template_path):
-            app.logger.error(f"Arquivo modelo CSV ainda não existe após tentativa de criação: {template_path}")
-            flash("Erro: não foi possível criar o arquivo modelo CSV.", "danger")
-            return redirect(url_for('precificador'))
+            # Criar o arquivo
+            df = create_csv_template()
+            df.to_csv(template_path, index=False, encoding='utf-8')
+            app.logger.info(f"Arquivo modelo CSV criado com sucesso em {template_path}")
         
         # Fazer download do arquivo
         return send_file(
@@ -852,19 +1032,10 @@ def public_download_modelo_excel():
             # Criar diretório se não existir
             os.makedirs(os.path.dirname(template_path), exist_ok=True)
             
-            # Importar e criar o arquivo
-            try:
-                # create_excel_template() precisa estar definida, assumindo que está
-                from openpyxl import Workbook
-                from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-                from openpyxl.utils.dataframe import dataframe_to_rows
-                wb = create_excel_template() # Chamar a função original se for definida em outro lugar
-                wb.save(template_path)
-                app.logger.info(f"Arquivo modelo Excel criado com sucesso em {template_path}")
-                
-            except Exception as ce:
-                app.logger.error(f"Erro ao criar arquivo modelo Excel: {ce}")
-                return f"Erro ao criar arquivo modelo Excel: {ce}", 500
+            # Criar o arquivo
+            wb = create_excel_template()
+            wb.save(template_path)
+            app.logger.info(f"Arquivo modelo Excel criado com sucesso em {template_path}")
         
         # Fazer download do arquivo
         return send_file(
@@ -891,16 +1062,10 @@ def public_download_modelo_csv():
             # Criar diretório se não existir
             os.makedirs(os.path.dirname(template_path), exist_ok=True)
             
-            # Importar e criar o arquivo
-            try:
-                # create_csv_template() precisa estar definida, assumindo que está
-                df = create_csv_template() # Chamar a função original se for definida em outro lugar
-                df.to_csv(template_path, index=False, encoding='utf-8')
-                app.logger.info(f"Arquivo modelo CSV criado com sucesso em {template_path}")
-                
-            except Exception as ce:
-                app.logger.error(f"Erro ao criar arquivo modelo CSV: {ce}")
-                return f"Erro ao criar arquivo modelo CSV: {ce}", 500
+            # Criar o arquivo
+            df = create_csv_template()
+            df.to_csv(template_path, index=False, encoding='utf-8')
+            app.logger.info(f"Arquivo modelo CSV criado com sucesso em {template_path}")
         
         # Fazer download do arquivo
         return send_file(
@@ -1063,6 +1228,9 @@ def salvar_precificacao_ajax(prec_id):
     if not prec_record:
         return jsonify({'status': 'error', 'message': 'Precificação não encontrada ou acesso não permitido.'}), 403
 
+    # Verificação do método de precificação ao recalcular
+    pricing_method = parametros_atualizados.get('pricing_method', 'simple_margin')
+    
     items_abaixo_custo = []
     for produto in produtos_atualizados:
         custo_unitario = float(produto.get('Custo Unitário (R$)', 0))
@@ -1204,6 +1372,11 @@ def settings():
                 'default_frete_ml': float(request.form.get('default_frete_ml', 0)),
                 'default_comissao_shopee': float(request.form.get('default_comissao_shopee', 0)),
                 'default_frete_shopee': float(request.form.get('default_frete_shopee', 0)),
+                # Novos parâmetros para Margem de Contribuição
+                'default_pricing_method': request.form.get('default_pricing_method', 'simple_margin'),
+                'default_contribution_margin': float(request.form.get('default_contribution_margin', 30)),
+                'default_fixed_costs': float(request.form.get('default_fixed_costs', 0)),
+                'default_monthly_sales_qty': int(request.form.get('default_monthly_sales_qty', 100)),
             }
             query = "UPDATE users SET " + ", ".join([f"{key} = ?" for key in params_to_update.keys()]) + " WHERE id = ?"
             values = list(params_to_update.values()) + [current_user.id]
@@ -1635,7 +1808,9 @@ def baixar_planilha_completa(prec_id):
         'frete_total', 
         'seguro_total', 
         'outros_total', 
-        'desc_total'
+        'desc_total',
+        'total_nfe_value_from_xml',
+        'sum_vProd_from_xml_items'
     ]
 
     # 2. Processar produtos para remover colunas e formatar valores

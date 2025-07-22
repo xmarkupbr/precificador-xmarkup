@@ -53,6 +53,12 @@ def init_db_script():
             default_comissao_shopee REAL DEFAULT 0.0,
             default_frete_shopee REAL DEFAULT 0.0,
             
+            -- NOVAS COLUNAS PARA MARGEM DE CONTRIBUIÇÃO --
+            default_pricing_method TEXT DEFAULT 'simple_margin',
+            default_fixed_costs REAL DEFAULT 0.0,
+            default_monthly_sales_qty INTEGER DEFAULT 100,
+            default_contribution_margin REAL DEFAULT 30.0,
+            
             -- NOVAS COLUNAS PARA EXCLUSÃO DE CONTA --
             is_deleted BOOLEAN NOT NULL DEFAULT 0,
             deleted_at TIMESTAMP,
