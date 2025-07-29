@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard de Monitoramento Avançado{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% include 'partials/_flash_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <span class="mdi mdi-monitor-dashboard me-2"></span>Dashboard de Monitoramento
+        </h2>
+        <a href="{{ url_for('competitor_monitor') }}" class="btn btn-outline-secondary">
+            <span class="mdi mdi-arrow-left me-1"></span>Voltar
+        </a>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted mb-1">Produtos Monitorados</h6>
+                    <h3 class="mb-0">{{ stats.total_products }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted mb-1">Alertas Ativos</h6>
+                    <h3 class="mb-0">{{ stats.active_alerts }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted mb-1">Adicionados (7 dias)</h6>
+                    <h3 class="mb-0">{{ stats.products_added_this_week }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted mb-1">Precisão</h6>
+                    <h3 class="mb-0">{{ stats.prediction_accuracy }}%</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Produtos -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Produtos Monitorados</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Produto</th>
+                        <th>Concorrente</th>
+                        <th>Preço Atual</th>
+                        <th>Variação 24h</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in products %}
+                    <tr>
+                        <td>{{ product.product_name }}</td>
+                        <td>{{ product.competitor_name }}</td>
+                        <td>
+                            {% if product.current_price %}
+                                R$ {{ "%.2f"|format(product.current_price) }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if product.price_change_24h %}
+                                <span class="{{ 'text-success' if product.price_change_24h < 0 else 'text-danger' }}">
+                                    {{ "%.1f"|format(product.price_change_24h) }}%
+                                </span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('competitor_product_history', product_id=product.id) }}" 
+                               class="btn btn-sm btn-outline-primary">
+                                Ver Detalhes
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

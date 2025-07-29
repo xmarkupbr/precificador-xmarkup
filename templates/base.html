@@ -66,6 +66,16 @@
                         </a>
                     </li>
                     {% endif %}
+                  
+                    {% if current_user.is_authenticated and current_user.status_cliente in ['Esmeralda', 'Diamante'] %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'competitors_dashboard' %}active{% endif %}" 
+                           href="{{ url_for('competitors_dashboard') }}">
+                            <span class="mdi mdi-monitor-dashboard"></span>
+                            Dashboard Avançado
+                        </a>
+                    </li>
+                    {% endif %}
                     
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'sobre' %}active{% endif %}" 

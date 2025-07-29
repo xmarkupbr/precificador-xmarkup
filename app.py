@@ -20,6 +20,11 @@ from collections import Counter
 import logging
 import requests # ADICIONADO: para scraping, mesmo que não seja usado agora
 from bs4 import BeautifulSoup # ADICIONADO: para scraping, mesmo que não seja usado agora
+from scraping.simple_scraper import SimplePriceScraper
+from scraping.simple_scheduler import SimpleScrapingScheduler
+import threading
+
+price_monitor_scheduler = None
 
 load_dotenv()
 
@@ -2232,6 +2237,265 @@ def competitor_comparison_graph():
         return redirect(url_for('competitor_monitor'))
 
     return render_template('competitor_comparison_graph.html', comparison_data=comparison_data)
+
+# --- COMANDO CLI PARA MONITORAMENTO DE PREÇOS ---
+@app.cli.command("start-price-monitor")
+def start_price_monitor():
+    """Inicia o monitoramento de preços em background"""
+    global price_monitor_scheduler
+    
+    if price_monitor_scheduler and price_monitor_scheduler.running:
+        print("O monitoramento já está em execução!")
+        return
+    
+    db = get_db()
+    scraper = SimplePriceScraper(db)
+    price_monitor_scheduler = SimpleScrapingScheduler(db, scraper)
+    price_monitor_scheduler.start()
+    
+    print("Monitoramento de preços iniciado! Pressione Ctrl+C para parar.")
+    
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        price_monitor_scheduler.stop()
+        print("\nMonitoramento parado.")
+
+# --- ROTAS DE MONITORAMENTO AVANÇADO ---
+@app.route('/competitors/dashboard')
+@login_required
+def competitors_dashboard():
+    """Dashboard avançado de monitoramento"""
+    db = get_db()
+    
+    # Estatísticas
+    stats = {
+        'total_products': db.execute(
+            "SELECT COUNT(*) FROM competitor_products WHERE user_id = ?",
+            (current_user.id,)
+        ).fetchone()[0],
+        
+        'active_alerts': db.execute(
+            """SELECT COUNT(DISTINCT product_id) 
+               FROM price_alert_rules 
+               WHERE user_id = ? AND enabled = 1""",
+            (current_user.id,)
+        ).fetchone()[0],
+        
+        'products_added_this_week': db.execute(
+            """SELECT COUNT(*) FROM competitor_products 
+               WHERE user_id = ? AND created_at > datetime('now', '-7 days')""",
+            (current_user.id,)
+        ).fetchone()[0],
+        
+        'alerts_last_24h': 0,  # Implementar contador de alertas disparados
+        'potential_savings': 0,  # Calcular baseado em diferenças de preço
+        'prediction_accuracy': 85  # Placeholder - implementar cálculo real
+    }
+    
+    # Produtos com dados agregados
+    products_query = """
+        SELECT 
+            cp.*,
+            c.name as competitor_name,
+            (SELECT price FROM competitor_price_history 
+             WHERE product_id = cp.id 
+             ORDER BY checked_at DESC LIMIT 1) as current_price,
+            (SELECT price FROM competitor_price_history 
+             WHERE product_id = cp.id 
+             AND checked_at > datetime('now', '-1 day')
+             ORDER BY checked_at ASC LIMIT 1) as price_24h_ago
+        FROM competitor_products cp
+        JOIN competitors c ON cp.competitor_profile_id = c.id
+        WHERE cp.user_id = ?
+        ORDER BY cp.last_checked_at DESC
+    """
+    
+    products = []
+    for row in db.execute(products_query, (current_user.id,)).fetchall():
+        product = dict(row)
+        
+        # Calcula variação 24h
+        if product['price_24h_ago'] and product['current_price']:
+            product['price_change_24h'] = (
+                (product['current_price'] - product['price_24h_ago']) 
+                / product['price_24h_ago'] * 100
+            )
+        else:
+            product['price_change_24h'] = None
+            
+        # Adiciona mais dados
+        product['trend'] = 'stable'  # Placeholder
+        product['predicted_price'] = None  # Placeholder
+        product['my_price'] = None  # Buscar do sistema de precificação
+        product['alert_active'] = False  # Verificar alertas ativos
+        product['out_of_stock'] = False  # Verificar estoque
+        
+        products.append(product)
+    
+    # Lista de concorrentes
+    competitors = db.execute(
+        "SELECT * FROM competitors WHERE user_id = ? ORDER BY name",
+        (current_user.id,)
+    ).fetchall()
+    
+    return render_template(
+        'competitor_monitor_advanced.html',
+        products=products,
+        stats=stats,
+        competitors=competitors
+    )
+
+@app.route('/test-scraping/<int:product_id>')
+@login_required
+def test_scraping(product_id):
+    """Testa o scraping de um produto específico"""
+    db = get_db()
+    
+    # Verifica se o produto pertence ao usuário
+    product = db.execute(
+        """SELECT cp.*, c.name as competitor_name
+           FROM competitor_products cp
+           JOIN competitors c ON cp.competitor_profile_id = c.id
+           WHERE cp.id = ? AND cp.user_id = ?""",
+        (product_id, current_user.id)
+    ).fetchone()
+    
+    if not product:
+        flash('Produto não encontrado.', 'danger')
+        return redirect(url_for('competitor_monitor'))
+    
+    # Faz o scraping
+    scraper = SimplePriceScraper(db)
+    result = scraper.scrape_product(product_id, product['product_url'], product['marketplace'])
+    scraper.close()
+    
+    if result:
+        flash(f"Scraping bem-sucedido! Preço: R$ {result['price']:.2f}", 'success')
+        
+        # Salva o resultado
+        db.execute(
+            "INSERT INTO competitor_price_history (product_id, price, additional_data) VALUES (?, ?, ?)",
+            (product_id, result['price'], json.dumps(result))
+        )
+        db.execute(
+            "UPDATE competitor_products SET last_checked_at = ? WHERE id = ?",
+            (datetime.now(), product_id)
+        )
+        db.commit()
+    else:
+        flash('Não foi possível obter o preço. Verifique a URL.', 'warning')
+    
+    return redirect(url_for('competitor_product_history', product_id=product_id))
+
+@app.route('/api/competitor/product/<int:product_id>/analytics')
+@login_required
+def api_competitor_analytics(product_id):
+    """API para analytics básico de produto"""
+    db = get_db()
+    
+    # Verifica permissão
+    product = db.execute(
+        "SELECT * FROM competitor_products WHERE id = ? AND user_id = ?",
+        (product_id, current_user.id)
+    ).fetchone()
+    
+    if not product:
+        return jsonify({"error": "Produto não encontrado"}), 404
+    
+    # Busca histórico de preços
+    history = db.execute(
+        """SELECT price, checked_at 
+           FROM competitor_price_history 
+           WHERE product_id = ? 
+           ORDER BY checked_at DESC 
+           LIMIT 30""",
+        (product_id,)
+    ).fetchall()
+    
+    if not history:
+        return jsonify({"error": "Sem dados históricos"}), 404
+    
+    prices = [h['price'] for h in history]
+    dates = [h['checked_at'] for h in history]
+    
+    # Calcula estatísticas básicas
+    analysis = {
+        "product_id": product_id,
+        "current_price": prices[0] if prices else 0,
+        "stats": {
+            "mean": sum(prices) / len(prices) if prices else 0,
+            "min": min(prices) if prices else 0,
+            "max": max(prices) if prices else 0,
+            "count": len(prices)
+        },
+        "history": [
+            {"price": p, "date": d} for p, d in zip(prices, dates)
+        ]
+    }
+    
+    return jsonify(analysis)
+
+@app.route('/api/competitor/alerts/configure', methods=['POST'])
+@login_required
+def api_configure_alerts():
+    """Configura alertas para um produto"""
+    data = request.get_json()
+    db = get_db()
+    
+    # Validação
+    product_id = data.get('product_id')
+    if not product_id:
+        return jsonify({"error": "Product ID required"}), 400
+    
+    # Verifica se o produto pertence ao usuário
+    product = db.execute(
+        "SELECT * FROM competitor_products WHERE id = ? AND user_id = ?",
+        (product_id, current_user.id)
+    ).fetchone()
+    
+    if not product:
+        return jsonify({"error": "Produto não encontrado"}), 404
+    
+    # Salva configurações
+    alerts = data.get('alerts', {})
+    
+    # Remove alertas existentes
+    db.execute(
+        "DELETE FROM price_alert_rules WHERE user_id = ? AND product_id = ?",
+        (current_user.id, product_id)
+    )
+    
+    # Cria novos alertas
+    for alert_type, config in alerts.items():
+        if isinstance(config, dict) and config.get('enabled'):
+            db.execute(
+                """INSERT INTO price_alert_rules 
+                   (user_id, product_id, alert_type, threshold, enabled) 
+                   VALUES (?, ?, ?, ?, ?)""",
+                (current_user.id, product_id, alert_type, 
+                 config.get('threshold', 5.0), True)
+            )
+        elif config == True:  # Para alertas simples como out_of_stock
+            db.execute(
+                """INSERT INTO price_alert_rules 
+                   (user_id, product_id, alert_type, enabled) 
+                   VALUES (?, ?, ?, ?)""",
+                (current_user.id, product_id, alert_type, True)
+            )
+    
+    # Atualiza frequência
+    frequency = data.get('frequency', 720)
+    db.execute(
+        "UPDATE competitor_products SET monitoring_frequency = ? WHERE id = ?",
+        (frequency, product_id)
+    )
+    
+    db.commit()
+    
+    return jsonify({"status": "success"})
+
 
 # --- COMANDO CLI PARA PROMOVER UTILIZADOR A ADMIN ---
 @app.cli.command("promote-user")
