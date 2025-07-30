@@ -2,10 +2,11 @@ import time
 from datetime import datetime, timedelta
 import json
 import threading
+import sqlite3
 
 class SimpleScrapingScheduler:
     def __init__(self, db_connection, scraper):
-        self.db = db_connection
+        self.db_connection_string = 'database.db'  # Armazena o caminho do banco em vez da conexão
         self.scraper = scraper
         self.running = False
         self.thread = None
@@ -27,6 +28,12 @@ class SimpleScrapingScheduler:
         self.scraper.close()
         print("Scheduler de monitoramento parado!")
     
+    def _get_db_connection(self):
+        """Cria uma nova conexão com o banco de dados para a thread atual"""
+        conn = sqlite3.connect(self.db_connection_string)
+        conn.row_factory = sqlite3.Row
+        return conn
+    
     def _run(self):
         """Loop principal do scheduler"""
         while self.running:
@@ -41,7 +48,7 @@ class SimpleScrapingScheduler:
                         self._process_product(product)
                         time.sleep(2)
                 
-                time.sleep(300)
+                time.sleep(60)  # Verifica a cada 1 minuto em vez de 5 minutos
                 
             except Exception as e:
                 print(f"Erro no scheduler: {e}")
@@ -50,7 +57,11 @@ class SimpleScrapingScheduler:
     def _get_products_to_update(self):
         """Busca produtos que precisam ser atualizados"""
         try:
-            one_hour_ago = datetime.now() - timedelta(hours=1)
+            # Cria uma nova conexão para esta thread
+            conn = self._get_db_connection()
+            cursor = conn.cursor()
+            
+            one_hour_ago = datetime.now() - timedelta(minutes=1)  # Reduzido para 1 minuto para testes
             
             query = """
                 SELECT cp.*, c.name as competitor_name
@@ -61,8 +72,11 @@ class SimpleScrapingScheduler:
                 LIMIT 10
             """
             
-            cursor = self.db.execute(query, (one_hour_ago,))
-            return [dict(row) for row in cursor.fetchall()]
+            cursor.execute(query, (one_hour_ago,))
+            products = [dict(row) for row in cursor.fetchall()]
+            
+            conn.close()
+            return products
             
         except Exception as e:
             print(f"Erro ao buscar produtos: {e}")
@@ -70,6 +84,7 @@ class SimpleScrapingScheduler:
     
     def _process_product(self, product):
         """Processa um produto individual"""
+        conn = None
         try:
             print(f"Processando: {product['product_name']} - {product['competitor_name']}")
             
@@ -80,17 +95,21 @@ class SimpleScrapingScheduler:
             )
             
             if result and result.get('price'):
-                self.db.execute(
+                # Cria uma nova conexão para esta thread
+                conn = self._get_db_connection()
+                cursor = conn.cursor()
+                
+                cursor.execute(
                     "INSERT INTO competitor_price_history (product_id, price, additional_data) VALUES (?, ?, ?)",
                     (product['id'], result['price'], json.dumps(result))
                 )
                 
-                self.db.execute(
+                cursor.execute(
                     "UPDATE competitor_products SET last_checked_at = ? WHERE id = ?",
                     (datetime.now(), product['id'])
                 )
                 
-                self.db.commit()
+                conn.commit()
                 
                 print(f"✓ Preço atualizado: R$ {result['price']:.2f}")
                 
@@ -100,16 +119,26 @@ class SimpleScrapingScheduler:
                 
         except Exception as e:
             print(f"Erro ao processar produto {product['id']}: {e}")
+        finally:
+            if conn:
+                conn.close()
     
     def _check_alerts(self, product, new_price):
         """Verifica se deve disparar alertas"""
+        conn = None
         try:
-            previous = self.db.execute(
+            # Cria uma nova conexão para esta thread
+            conn = self._get_db_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute(
                 """SELECT price FROM competitor_price_history 
                    WHERE product_id = ? AND price != ?
                    ORDER BY checked_at DESC LIMIT 1""",
                 (product['id'], new_price)
-            ).fetchone()
+            )
+            
+            previous = cursor.fetchone()
             
             if previous:
                 old_price = previous['price']
@@ -121,3 +150,6 @@ class SimpleScrapingScheduler:
                     
         except Exception as e:
             print(f"Erro ao verificar alertas: {e}")
+        finally:
+            if conn:
+                conn.close()

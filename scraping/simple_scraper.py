@@ -11,8 +11,8 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 
 class SimplePriceScraper:
-    def __init__(self, db_connection):
-        self.db = db_connection
+    def __init__(self, db_connection=None):
+        self.db = db_connection  # Pode ser None se usado pelo scheduler
         self.driver = None
         self.session = requests.Session()
         self.session.headers.update({

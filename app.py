@@ -23,6 +23,7 @@ from bs4 import BeautifulSoup # ADICIONADO: para scraping, mesmo que não seja u
 from scraping.simple_scraper import SimplePriceScraper
 from scraping.simple_scheduler import SimpleScrapingScheduler
 import threading
+import time  # ADICIONADO: necessário para o comando start-price-monitor
 
 price_monitor_scheduler = None
 
