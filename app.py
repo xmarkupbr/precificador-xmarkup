@@ -805,7 +805,15 @@ def precificador():
         'comissao_shopee': user_settings['default_comissao_shopee'],
         'frete_shopee': user_settings['default_frete_shopee'],
         'contribution_margin': user_settings['default_contribution_margin'],
+        'fixed_costs': user_settings['default_fixed_costs'],
+        'monthly_sales_qty': user_settings['default_monthly_sales_qty'],
+        'pricing_method': user_settings['default_pricing_method']
     }
+    print("="*50)
+    print("PARAMETROS ENVIADOS PARA O TEMPLATE:")
+    print(f"fixed_costs: {parametros.get('fixed_costs')}")
+    print(f"monthly_sales_qty: {parametros.get('monthly_sales_qty')}")
+    print("="*50)
     return render_template(
         "precificador.html", 
         parametros=parametros,

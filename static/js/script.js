@@ -511,7 +511,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function initializeResultsPage() {
         console.log("XMarkup JS: Inicializando página de resultados.");
-        loadParametersFromLocalStorage();
+        //loadParametersFromLocalStorage();
         // Converte NodeList para Array para usar métodos como slice() e filter()
         allRows = Array.from(document.querySelectorAll("#tabela-produtos tbody tr"));
         filteredRows = [...allRows];
