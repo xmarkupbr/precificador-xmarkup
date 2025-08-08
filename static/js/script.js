@@ -531,7 +531,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Se estiver na página inicial (formulário de parâmetros)
     const formParam = document.getElementById("form-param");
     if (formParam) {
-        loadParametersFromLocalStorage();
+        //loadParametersFromLocalStorage();
         // Adiciona listener para guardar os parâmetros ao alterá-los.
         formParam.querySelectorAll("input[name^='margem'], input[name^='comissao_'], input[name^='frete_'], input[name^='contribution_'], input[name^='fixed_'], input[name^='monthly_'], input[name='pricing_method']").forEach(input => {
             input.addEventListener("change", saveParametersToLocalStorage);
